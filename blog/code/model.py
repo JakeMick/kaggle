@@ -10,7 +10,8 @@ import nltk
 class processing():
     def __init__(self):
         """General code for data projects"""
-        parent_dir = path.pardir()
+        current_path = path.dirname(path.abspath(__file__))
+        parent_dir = path.dirname(current_path)
         self.data_dir = path.join(parent_dir, 'data')
         self.sub_dir = path.join(parent_dir, 'submissions')
         self.load_file_handles()
@@ -28,7 +29,7 @@ class processing():
         self.data = {}
         for name, filepath in json_filenames.items():
             long_filepath = path.join(self.data_dir, filepath)
-            self.files[name] = open(long_filepath, 'r')
+            self.data[name] = open(long_filepath, 'r')
 
 def bullshit():
     testUsers = open(folderin + "testUsers.json", 'r')
