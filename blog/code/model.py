@@ -8,6 +8,11 @@ import sqlite3
 import nltk
 
 class processing():
+    """Returns a class object with a dict of file handle.
+
+    >>>herp = processing()
+    >>>train_handle = herp.data['train']"""
+
     def __init__(self):
         """General code for data projects"""
         current_path = path.dirname(path.abspath(__file__))
@@ -25,7 +30,7 @@ class processing():
                 'test_post_thin' : 'testPostsThin.json',
                 'test_user' : 'testUsers.json',
                 'train_post' : 'trainPosts.json',
-                'train_post_this' : 'trainPostsThin.json'}
+                'train_post_thin' : 'trainPostsThin.json'}
         self.data = {}
         for name, filepath in json_filenames.items():
             long_filepath = path.join(self.data_dir, filepath)
