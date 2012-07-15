@@ -4,6 +4,7 @@ Diabetus
 """
 from os import path
 import sqlite3
+from collections import Counter
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -23,14 +24,48 @@ class processing():
         self.conn = sqlite3.Connection(path.join(self.data_dir,'compData.db'))
         self.curr = sqlite3.Cursor(self.conn)
 
-    def get_set(self, column_name, table):
-        super_query = self.conn.execute("SELECT {0} from {1}".format(
-            column_name, table))
+    def get_tables_column(self, table, column_name):
+        try:
+            super_query = self.conn.execute("SELECT {0} from {1}".format(
+                column_name, table))
+        except:
+            print(column_name, table)
+            raise()
+
+        return super_query.fetchall()
+
+    def get_tables_column_where(self, column_name, table, target, stuff):
+        super_query = self.conn.execute("SELECT {0} from {1} where {2}={3}".format(
+            column_name, table, target, stuff))
         return super_query.fetchall()
 
     def get_column_names(self, table):
         self.curr.execute("PRAGMA table_info({0})".format(table))
-        return [i[1] for i in self.curr.fetchall()]
+        return self.curr.fetchall()
+
+    def most_unique(list_o_stuff, size):
+        c = Counter(list_o_stuff)
+        common_stuff = []
+        for stuff, count in  c.most_common():
+            if float(count)/float(size) <= .01:
+                break
+            else:
+                common_stuff.append(stuff)
+        return common_stuff
+
+    def test_if_fake_int(self, list_o_stuff):
+        total_len = 0.0
+        numeric_len = 0.0
+        for v in list_o_stuff:
+            value = v[0]
+            print(value)
+            if value == None:
+                continue
+            else:
+                total_len += float(len(value))
+                numeric_len += sum([1.0 for i in value if i.isdigit()])
+        print(numeric_len, total_len)
+        return numeric_len/total_len >= 0.90
 
     def get_datasets(self):
         datanames = [
@@ -55,11 +90,18 @@ class processing():
 #       '{0}_transcriptMedication'
         ]
 
-        for held_in_out in ['train','test']:
-            for table in datanames:
-                target_table = table.format(held_in_out)
-                column_names = self.get_column_names(target_table)
-                
+        for table in datanames:
+            train_table = table.format('training')
+            test_table = table.format('testing')
+            columns = self.get_column_names(train_table)
+            for col in columns:
+                if col[2] == (u'INT' or u'REAL'):
+                    pass
+                else:
+                    values = self.get_tables_column(train_table, col[1])
+                    print(col, self.test_if_fake_int(values))
+
+
 
 
 
