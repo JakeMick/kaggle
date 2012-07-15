@@ -25,12 +25,8 @@ class processing():
         self.curr = sqlite3.Cursor(self.conn)
 
     def get_tables_column(self, table, column_name):
-        try:
-            super_query = self.conn.execute("SELECT {0} from {1}".format(
-                column_name, table))
-        except:
-            print(column_name, table)
-            raise()
+        super_query = self.conn.execute("SELECT {0} from {1}".format(
+            column_name, table))
 
         return super_query.fetchall()
 
@@ -58,13 +54,14 @@ class processing():
         numeric_len = 0.0
         for v in list_o_stuff:
             value = v[0]
-            print(value)
+            if type(value) == int or type(value) == float:
+                return True
             if value == None:
                 continue
             else:
                 total_len += float(len(value))
                 numeric_len += sum([1.0 for i in value if i.isdigit()])
-        print(numeric_len, total_len)
+        print(numeric_len/total_len)
         return numeric_len/total_len >= 0.90
 
     def get_datasets(self):
@@ -95,7 +92,10 @@ class processing():
             test_table = table.format('testing')
             columns = self.get_column_names(train_table)
             for col in columns:
-                if col[2] == (u'INT' or u'REAL'):
+                if col[2] == ((u'INT' or u'REAL') or u'integer'):
+                    pass
+                # FIXME Broken formatting????
+                elif col[1][-2] == ':':
                     pass
                 else:
                     values = self.get_tables_column(train_table, col[1])
