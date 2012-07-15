@@ -140,7 +140,6 @@ class processing():
             for col in columns:
                 col = list(col)
                 col[1] = self.strip_bad_characters(col[1])
-                print(col)
                 # FIXME: formatting issues?
                 if col[1][-2] == ':':
                     pass
@@ -171,7 +170,9 @@ class processing():
                                     else:
                                         for train, test in zip(train_both, test_both):
                                             # One patientID per table
-                                            # Categorical/ordinal response
+                                            # Categorical/ordinal responses
+                                            print("Type A")
+                                            print(table, col)
                                             self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                             self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
 
@@ -181,6 +182,9 @@ class processing():
                                 for train, test in zip(train_both, test_both):
                                         # One patientID per table
                                         # Lots of numerical responses
+                                        print("Type B")
+                                        print(table, col)
+
                                         self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                         self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
 
@@ -204,7 +208,11 @@ class processing():
                                 for e in elems:
                                     for train, test in zip(train_both, test_both):
                                         # Greater than one patientID per table
-                                        # Categorical/ordinal response
+                                        # Categorical/ordinal responses
+                                        print("Type C")
+                                        print(table, col)
+
+
                                         self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                         self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
                                         resp_e = resp + '_'+str(e)
@@ -223,6 +231,8 @@ class processing():
                                         # Multiple patientID
                                         # Multiple numerical responses
                                         # FIXME in postprocessing
+                                        print("Type D")
+                                        print(table, col)
                                         self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                         self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
 
@@ -249,6 +259,10 @@ class processing():
                         most_elements = self.most_unique([t[1] for t in train_both])
                         for e in most_elements:
                             for train, test in zip(train_both, test_both):
+
+                                print("Type E")
+                                print(table, col)
+
                                 self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                 self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
                                 resp_e = resp+'_'+str(e)
@@ -261,21 +275,22 @@ class processing():
                                 self.train_patient_info[train[0]][resp_e] += int(train[1] == e)
                                 self.test_patient_info[test[0]][resp_e] += int(test[1] == e)
 
-    def postprocessing(self):
+    def run(self):
         import pandas
         import re
-
+        self.get_datasets()
         self.train_df = pandas.DataFrame(self.train_patient_info)
         del self.train_patient_info
         self.test_df = pandas.DataFrame(self.test_patient_info)
         del self.test_patient_info
         for df in [self.train_df, self.test_df]:
             del df['patientGuid']
-            df[df == 'NULL'] = np.nan
-            df = df.astype(float)
 
             indices = df.index.tolist()
             df = df.transpose()
+            for i in indices:
+                df[i][df[i] == 'NULL'] = np.nan
+            df = df.astype(float)
 
             easy_rm = []
             for i in indices:
@@ -306,7 +321,6 @@ class processing():
                 df[name+'_min'] = df[sub].min(axis=1, skipna=True)
                 df[name+'_median'] = df[sub].median(axis=1, skipna=True)
                 df[name+'_std'] = df[sub].std(axis=1, skipna=True)
-                del df[sub]
-            sub
-            index_dict.keys()
+                for i in sub:
+                    del df[i]
 
