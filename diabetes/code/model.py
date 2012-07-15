@@ -50,19 +50,12 @@ class processing():
         return common_stuff
 
     def test_if_fake_int(self, list_o_stuff):
-        total_len = 0.0
-        numeric_len = 0.0
         for v in list_o_stuff:
             value = v[0]
             if type(value) == int or type(value) == float:
                 return True
             if value == None:
                 continue
-            else:
-                total_len += float(len(value))
-                numeric_len += sum([1.0 for i in value if i.isdigit()])
-        print(numeric_len/total_len)
-        return numeric_len/total_len >= 0.90
 
     def get_datasets(self):
         datanames = [
@@ -87,19 +80,19 @@ class processing():
 #       '{0}_transcriptMedication'
         ]
 
+        definitely_numeric = set(['MedicationStrength'])
         for table in datanames:
             train_table = table.format('training')
             test_table = table.format('testing')
             columns = self.get_column_names(train_table)
             for col in columns:
-                if col[2] == ((u'INT' or u'REAL') or u'integer'):
-                    pass
-                # FIXME Broken formatting????
-                elif col[1][-2] == ':':
+                # FIXME: formatting issues?
+                if col[1][-2] == ':':
                     pass
                 else:
                     values = self.get_tables_column(train_table, col[1])
-                    print(col, self.test_if_fake_int(values))
+                    if self.test_if_fake_int(values) or col[1] in definitely_numeric:
+                        print col
 
 
 
