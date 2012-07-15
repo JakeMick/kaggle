@@ -3,11 +3,12 @@ import re
 import urllib2
 from curses.ascii import isdigit
 from nltk.corpus import cmudict
-d = cmudict.dict()
 from nltk.corpus.util import LazyCorpusLoader
 from nltk.corpus.reader import CMUDictCorpusReader
+import conf
 
-
+conf.set_conf()
+d = cmudict.dict()
 suffdict = LazyCorpusLoader(
     'cmusuffdict', CMUDictCorpusReader, ['cmusuffdict'])
 suffdict = suffdict.dict()

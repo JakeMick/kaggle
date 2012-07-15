@@ -104,6 +104,7 @@ def find_limericks(tokens, linebreak):
                 break
             n += 1
         i += 1
+    print(word_data)
     return limericks
 
 

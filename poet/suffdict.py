@@ -4,8 +4,9 @@ from os import path
 from curses.ascii import isdigit
 import nltk
 from nltk.corpus import cmudict
+import conf
 
-nltk.data.path = [path.abspath(path.dirname(__file__))]
+conf.set_conf()
 cmu = cmudict.dict()
 entries = cmudict.entries()
 

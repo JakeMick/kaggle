@@ -6,9 +6,13 @@ sys.path.append(
 import poetry
 import re
 from nltk.corpus import cmudict
-d = cmudict.dict()
 from nltk.corpus.util import LazyCorpusLoader
-from nltk.corpus.reader import *
+from nltk.corpus.reader import CMUDictCorpusReader
+import conf
+
+conf.set_conf()
+
+d = cmudict.dict()
 suffdict = LazyCorpusLoader(
     'cmusuffdict', CMUDictCorpusReader, ['cmusuffdict'])
 suffdict = suffdict.dict()
@@ -83,33 +87,4 @@ print miss
 print "Percent accuracy: "
 print (hit / (hit + miss)) * 100
 
-# Current results:
-# hits:
-# 98390
-# misses:
-# 24160
-# Percent accuracy:
-# 80.2855977152
-
-# After tweaking:
-# Percent accuracy:
-# 81.6466748266
-# Goes up to 81.8514891881 if I use max(d[word.lower()]) instead of min
-
-# After using max when creating suffdict too:
-# Percent accuracy:
-# 82.2088943288
-# But then the limericks feel less satisfing, and I'd rather have
-# better limericks than slightly better accuracy
-
-# After using min when creating suffdict too:
-# Percent accuracy:
-# 82.2007343941
-
-# After including two consonants at the beginning, not just one:
-# Percent accuracy: 
-# 85.7772337821
-
-# After ignoring stress:
-# Percent accuracy: 
 # 90.8518971848
