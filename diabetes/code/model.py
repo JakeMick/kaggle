@@ -390,5 +390,6 @@ class processing():
         X_test = np.hstack((X_test,X_test_nan))
         X_train[np.isnan(X_train)] = 0.0
         X_test[np.isnan(X_test)] = 0.0
-        return X_train, Y_train, X_test
+        self.datamart.close()
+        return X_train, Y_train
 
