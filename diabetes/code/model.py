@@ -7,6 +7,7 @@ import sqlite3
 import re
 from collections import Counter
 import numpy as np
+import pandas
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -163,33 +164,32 @@ class processing():
                     if self.test_if_fake_int(train_values):
                         if self.is_list_unique(train_both):
                             if len(elems) <= self.ordinal_threshold:
+                                print("Type A")
+                                print(table, col)
                                 for e in elems:
                                     # Ignore second element of binary variables
                                     if len(elems) == 2 and elems[1] == e:
                                         pass
                                     else:
-                                        for train, test in zip(train_both, test_both):
+                                       for train, test in zip(train_both, test_both):
                                             # One patientID per table
                                             # Categorical/ordinal responses
-                                            print("Type A")
-                                            print(table, col)
                                             self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                             self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
 
                                             self.train_patient_info[train[0]][resp+'_'+str(e)] = int(train[1] == e)
                                             self.test_patient_info[test[0]][resp+'_'+str(e)] = int(test[1] == e)
                             else:
+                                print("Type B")
+                                print(table, col)
                                 for train, test in zip(train_both, test_both):
-                                        # One patientID per table
-                                        # Lots of numerical responses
-                                        print("Type B")
-                                        print(table, col)
+                                    # One patientID per table
+                                    # Lots of numerical responses
+                                    self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
+                                    self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
 
-                                        self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                        self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-
-                                        self.train_patient_info[train[0]][resp] = train[1]
-                                        self.test_patient_info[test[0]][resp] = test[0]
+                                    self.train_patient_info[train[0]][resp] = train[1]
+                                    self.test_patient_info[test[0]][resp] = test[1]
                         else:
                             for train, test in zip(train_both, test_both):
                             # Count table occurences
@@ -205,14 +205,12 @@ class processing():
                                 self.test_patient_info[test[0]][resp_cn] += 1
 
                             if len(elems) <= self.ordinal_threshold:
+                                print("Type C")
+                                print(table, col)
                                 for e in elems:
                                     for train, test in zip(train_both, test_both):
                                         # Greater than one patientID per table
                                         # Categorical/ordinal responses
-                                        print("Type C")
-                                        print(table, col)
-
-
                                         self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                         self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
                                         resp_e = resp + '_'+str(e)
@@ -220,36 +218,34 @@ class processing():
                                             self.train_patient_info[train[0]][resp_e] = 0
                                         if resp_e not in self.test_patient_info[test[0]]:
                                             self.test_patient_info[test[0]][resp_e] = 0
-
                                         self.train_patient_info[train[0]][resp_e] += int(train[1] == e)
                                         self.test_patient_info[test[0]][resp_e] += int(test[1] == e)
                             else:
                                 cn_ids = {}
                                 cn_ids['train'] = {}
                                 cn_ids['test'] = {}
+                                print("Type D")
+                                print(table, col)
+ 
                                 for train, test in zip(train_both, test_both):
-                                        # Multiple patientID
-                                        # Multiple numerical responses
-                                        # FIXME in postprocessing
-                                        print("Type D")
-                                        print(table, col)
-                                        self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                        self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-
-                                        if train[0] not in cn_ids['train']:
-                                            cn_ids['train'][train[0]] = 0
-                                        else:
-                                            cn_ids['train'][train[0]] += 1
-                                        if test[0] not in cn_ids['test']:
-                                            cn_ids['test'][test[0]] = 0
-                                        else:
-                                            cn_ids['test'][test[0]] += 1
-
-                                        resp = str(col[1])
-                                        self.train_patient_info[train[0]][resp + '_DUMMY_'+str(
-                                            cn_ids['train'][train[0]])]= train[1]
-                                        self.test_patient_info[test[0]][resp + '_DUMMY_'+str(
-                                            cn_ids['test'][test[0]])]= test[1]
+                                    # Multiple patientID
+                                    # Multiple numerical responses
+                                    # FIXME in postprocessing
+                                    self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
+                                    self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
+                                    if train[0] not in cn_ids['train']:
+                                        cn_ids['train'][train[0]] = 0
+                                    else:
+                                        cn_ids['train'][train[0]] += 1
+                                    if test[0] not in cn_ids['test']:
+                                        cn_ids['test'][test[0]] = 0
+                                    else:
+                                        cn_ids['test'][test[0]] += 1
+                                    resp = str(col[1])
+                                    self.train_patient_info[train[0]][resp + '_DUMMY_'+str(
+                                        cn_ids['train'][train[0]])]= train[1]
+                                    self.test_patient_info[test[0]][resp + '_DUMMY_'+str(
+                                        cn_ids['test'][test[0]])]= test[1]
 
                     elif col[1] in definitely_numeric:
                         # FIXME?: ignores dosage quantities.
@@ -257,12 +253,10 @@ class processing():
                     else:
                         # Categorical/Nominal
                         most_elements = self.most_unique([t[1] for t in train_both])
+                        print("Type E")
+                        print(table, col)
                         for e in most_elements:
                             for train, test in zip(train_both, test_both):
-
-                                print("Type E")
-                                print(table, col)
-
                                 self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
                                 self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
                                 resp_e = resp+'_'+str(e)
@@ -276,51 +270,87 @@ class processing():
                                 self.test_patient_info[test[0]][resp_e] += int(test[1] == e)
 
     def run(self):
-        import pandas
-        import re
         self.get_datasets()
         self.train_df = pandas.DataFrame(self.train_patient_info)
         del self.train_patient_info
         self.test_df = pandas.DataFrame(self.test_patient_info)
         del self.test_patient_info
-        for df in [self.train_df, self.test_df]:
-            del df['patientGuid']
 
-            indices = df.index.tolist()
-            df = df.transpose()
-            for i in indices:
-                df[i][df[i] == 'NULL'] = np.nan
-            df = df.astype(float)
+        del self.train_df['patientGuid']
+        indices = self.train_df.index.tolist()
+        self.train_df = self.train_df.transpose()
+        for i in indices:
+            self.train_df[i][self.train_df[i] == 'NULL'] = np.nan
+        self.train_df = self.train_df.astype(float)
 
-            easy_rm = []
-            for i in indices:
-                if re.search('PatientGuid', i):
-                    easy_rm.append(i)
-            for i in easy_rm:
-                del df[i]
+        easy_rm = []
+        for i in indices:
+            if re.search('PatientGuid', i):
+                easy_rm.append(i)
+        for i in easy_rm:
+            del self.train_df[i]
 
-            easy_rm = []
-            for i in indices:
-                if re.search('DUMMY', i):
-                    easy_rm.append(i)
+        easy_rm = []
+        for i in indices:
+            if re.search('DUMMY', i):
+                easy_rm.append(i)
 
-            index_info = set([])
-            for i in easy_rm:
-                lol = i.split('_')[0]
-                if lol not in index_info:
-                    index_info.add(lol)
-            index_dict = {}
-            for i in index_info:
-                index_dict[i] = []
-                for j in easy_rm:
-                    if re.match(i, j.split('_')[0]):
-                        index_dict[i].append(j)
+        index_info = set([])
+        for i in easy_rm:
+            lol = i.split('_')[0]
+            if lol not in index_info:
+                index_info.add(lol)
+        index_dict = {}
+        for i in index_info:
+            index_dict[i] = []
+            for j in easy_rm:
+                if re.match(i, j.split('_')[0]):
+                    index_dict[i].append(j)
 
-            for name,sub in index_dict.items():
-                df[name+'_max'] = df[sub].max(axis=1, skipna=True)
-                df[name+'_min'] = df[sub].min(axis=1, skipna=True)
-                df[name+'_median'] = df[sub].median(axis=1, skipna=True)
-                df[name+'_std'] = df[sub].std(axis=1, skipna=True)
-                for i in sub:
-                    del df[i]
+        for name,sub in index_dict.items():
+            self.train_df[name+'_max'] = self.train_df[sub].max(axis=1, skipna=True)
+            self.train_df[name+'_min'] = self.train_df[sub].min(axis=1, skipna=True)
+            self.train_df[name+'_median'] = self.train_df[sub].median(axis=1, skipna=True)
+            self.train_df[name+'_std'] = self.train_df[sub].std(axis=1, skipna=True)
+            for i in sub:
+                del self.train_df[i]
+
+        del self.test_df['patientGuid']
+        indices = self.test_df.index.tolist()
+        self.test_df = self.test_df.transpose()
+        for i in indices:
+            self.test_df[i][self.test_df[i] == 'NULL'] = np.nan
+        self.test_df = self.test_df.astype(float)
+
+        easy_rm = []
+        for i in indices:
+            if re.search('PatientGuid', i):
+                easy_rm.append(i)
+        for i in easy_rm:
+            del self.test_df[i]
+
+        easy_rm = []
+        for i in indices:
+            if re.search('DUMMY', i):
+                easy_rm.append(i)
+
+        index_info = set([])
+        for i in easy_rm:
+            lol = i.split('_')[0]
+            if lol not in index_info:
+                index_info.add(lol)
+        index_dict = {}
+        for i in index_info:
+            index_dict[i] = []
+            for j in easy_rm:
+                if re.match(i, j.split('_')[0]):
+                    index_dict[i].append(j)
+
+        for name,sub in index_dict.items():
+            self.test_df[name+'_max'] = self.test_df[sub].max(axis=1, skipna=True)
+            self.test_df[name+'_min'] = self.test_df[sub].min(axis=1, skipna=True)
+            self.test_df[name+'_median'] = self.test_df[sub].median(axis=1, skipna=True)
+            self.test_df[name+'_std'] = self.test_df[sub].std(axis=1, skipna=True)
+            for i in sub:
+                del self.test_df[i]
 
