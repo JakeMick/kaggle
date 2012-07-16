@@ -22,6 +22,7 @@ class processing():
         self.load_file_handles()
         self.ordinal_threshold = 5
         self.uniq_threshold = 0.001
+        self.datamart = pandas.HDFStore(path.join(self.data_dir, 'data.h5'))
 
     def strip_bad_characters(self,string):
         no_unicode = ''.join((c for c in string if 0 < ord(c) < 127))
@@ -99,9 +100,15 @@ class processing():
         return set([i[1] for i in list])
 
     def get_tables_column_patient(self, table, column_name):
-        super_query = self.conn.execute("SELECT PatientGuid, {0} from {1}".format(
+        super_query = self.conn.execute("SELECT PatientGuid, {0} FROM {1}".format(
             column_name, table))
         return [s for s in super_query.fetchall() if s[1] != None]
+
+    def get_Y_train(self):
+        diabetes_cursor = self.conn.execute("SELECT PatientGuid,\
+                dmindicator FROM training_patient")
+        diabetes = diabetes_cursor.fetchall()
+        return diabetes
 
     def add_subdict(self, dic, sub_name):
         if sub_name not in dic:
@@ -271,6 +278,15 @@ class processing():
 
     def run(self):
         self.get_datasets()
+
+        Y_train = self.get_Y_train()
+        for patientID, dmindicator in Y_train:
+            if patientID not in self.train_patient_info:
+                print("{0} ignored".format(patientID))
+                pass
+            else:
+                self.train_patient_info[patientID]['Target'] = dmindicator
+
         self.train_df = pandas.DataFrame(self.train_patient_info)
         del self.train_patient_info
         self.test_df = pandas.DataFrame(self.test_patient_info)
@@ -353,7 +369,26 @@ class processing():
             self.test_df[name+'_std'] = self.test_df[sub].std(axis=1, skipna=True)
             for i in sub:
                 del self.test_df[i]
+        self.datamart['train'] = self.train_df
+        self.datamart['test'] = self.test_df
 
-        self.train_df.to_csv(path.join(self.data_dir,'train.csv'))
-        self.test_df.to_csv(path.join(self.data_dir,'test.csv'))
+    def get_munged_clean_data(self):
+        train_df = self.datamart['train']
+
+        Y_train_df = train_df['Target']
+        Y_train = np.array(Y_train_df)
+        del train_df['Target']
+
+        test_df = self.datamart['test']
+
+        assert np.all(train_df.columns == test_df.columns)
+        X_train = np.array(train_df)
+        X_test = np.array(test_df)
+        X_train_nan = np.isnan(X_train)
+        X_test_nan = np.isnan(X_test)
+        X_train = np.hstack((X_train,X_train_nan))
+        X_test = np.hstack((X_test,X_test_nan))
+        X_train[np.isnan(X_train)] = 0.0
+        X_test[np.isnan(X_test)] = 0.0
+        return X_train, Y_train, X_test
 
