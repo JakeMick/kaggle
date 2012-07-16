@@ -354,3 +354,6 @@ class processing():
             for i in sub:
                 del self.test_df[i]
 
+        self.train_df.to_csv(path.join(self.data_dir,'train.csv'))
+        self.test_df.to_csv(path.join(self.data_dir,'test.csv'))
+
