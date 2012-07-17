@@ -9,7 +9,11 @@ from collections import Counter
 import csv
 import numpy as np
 import pandas
-from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier
+from sklearn.cross_validation import KFold
+from ml_metrics import log_loss
+from scipy.optimize import fmin_bfgs
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -428,17 +432,159 @@ class processing():
 class data_io:
     def __init__(self):
         self.model = processing()
+        self.model.datamart.close()
         self.feat_path = path.join(path.join(self.model.data_dir,'models'),'feature_selection')
-        self.feat_imp = np.load(path.join(self.feat_path,'feat_imp'))
+        self.feat_imp = np.load(path.join(self.feat_path,'feat_imp.npy'))
+        self.sort_feat_imp = self.feat_imp.copy()
+        self.sort_feat_imp.sort()
+        self.sort_feat_imp = self.sort_feat_imp[::-1]
 
-    def _n_important_features(self):
-        pass
+    def _n_important_features(self,n=100):
+        return self.feat_imp > self.sort_feat_imp[n]
 
     def get_training_data(self,n=100):
-        X_train = np.load(path.join(self.feat_path,'xtrain'))
-        Y_train = np.load(path.join(self.feat_path,'ytain'))
+        X_train = np.load(path.join(self.feat_path,'xtrain.npy'))
+        Y_train = np.load(path.join(self.feat_path,'ytrain.npy'))
+        self.observations = X_train.shape[0]
+        return X_train[:,self._n_important_features(n=n)], Y_train
 
-    def get_held_out_data(self,n=100):
-        np.load(path.join(self.feat_path,'xtest'))
+    def get_cv(self, k=9):
+        return KFold(n=self.observations, k=k)
+
+    def get_heldout_data(self,n=100):
+        label_handle = open(path.join(self.feat_path,'held_index.csv'),'r')
+        reader = csv.reader(label_handle)
+        labels = []
+        for row in reader:
+            labels.append(''.join([q for q in row]))
+        label_handle.close()
+
+        heldout = np.load(path.join(self.feat_path,'xtest.npy'))
+        self.labels = labels
+        return heldout[:,self._n_important_features(n=n)], labels
 
 
+def fit_platt_logreg(score, y):
+    y = np.asanyarray(y).ravel()
+    score = np.asanyarray(score, dtype=np.float64).ravel()
+
+    uniq = np.sort(np.unique(y))
+    if np.size(uniq) != 2:
+        raise ValueError('only binary classification is supported. classes: %s'
+                                                                        % uniq)
+
+    # the score is standardized to make logloss and ddx_logloss
+    # numerically stable
+    score_std = score.std()
+    score_mean = score.mean()
+    score_std = 1
+    score_mean = 0
+    n_score = (score - score_mean) / score_std
+
+    n = y == uniq[0]
+    p = y == uniq[1]
+    n_n = float(np.sum(n))
+    n_p = float(np.sum(p))
+    yy = np.empty(y.shape, dtype=np.float64)
+    yy[n] = 1. / (2. + n_n)
+    yy[p] = (1. + n_p) / (2. + n_p)
+    one_minus_yy = 1 - yy
+
+    def logloss(x):
+        a, b = x
+        z = a * n_score + b
+        ll_p = np.log1p(np.exp(-z))
+        ll_n = np.log1p(np.exp(z))
+        return (one_minus_yy * ll_n + yy * ll_p).sum()
+
+    def ddx_logloss(x):
+        a, b = x
+        z = a * n_score + b
+        exp_z = np.exp(z)
+        exp_m_z = np.exp(-z)
+        dda_ll_p = -n_score / (1 + exp_z)
+        dda_ll_n = n_score / (1 + exp_m_z)
+        ddb_ll_p = -1 / (1 + exp_z)
+        ddb_ll_n = 1 / (1 + exp_m_z)
+        dda_logloss = (one_minus_yy * dda_ll_n + yy * dda_ll_p).sum()
+        ddb_logloss = (one_minus_yy * ddb_ll_n + yy * ddb_ll_p).sum()
+        gradient = np.array([dda_logloss, ddb_logloss])
+        return gradient
+
+    # FIXME check if fmin_bfgs converges
+    a, b = fmin_bfgs(logloss, [0, 0], ddx_logloss)
+    return a / score_std, b - a * score_mean / score_std
+
+
+class PlattScaler(BaseEstimator, ClassifierMixin):
+    """Predicting Good Probabilities With Supervised Learning"""
+
+    def __init__(self, classifier):
+        self.classifier = classifier
+        self.a = None
+        self.b = None
+
+    def fit(self, X, y, cv=None, **fit_params):
+        self._set_params(**fit_params)
+        if cv is None:
+            cv = KFold(y.size, k=5)
+
+        clf = self.classifier
+        score_list = []
+        y_list = []
+        for train_index, test_index in cv:
+            print train_index.shape, test_index.shape
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+
+            clf.fit(X_train, y_train)
+            score = clf.predict_proba(X_test)[:,1].reshape(-1,1)
+            score_list.append(score)
+            y_list.append(y_test)
+
+        yy = np.concatenate(y_list)
+        scores = np.concatenate(score_list)
+
+        self.a, self.b = fit_platt_logreg(scores, yy)
+        self.classifier.fit(X, y)
+        return self
+
+    def predict_proba(self, X):
+        score = self.classifier.predict_proba(X)[:,1].reshape(-1,1)
+        proba = 1. / (1. + np.exp(-(self.a * score + self.b)))
+        return np.hstack((1. - proba, proba))
+
+    def predict(self, X):
+        #FIXME
+        return self.predict_proba(X) > .5
+
+def gradient_boost_model(n=1000):
+    dio = data_io()
+    x,y = dio.get_training_data(n=n)
+    held,labels = dio.get_heldout_data(n=n)
+    x_mean = x.mean(axis=0)
+    x -= x_mean
+    x_std = x.std(axis=0)
+    x /= x_std
+    held -= x_mean
+    held /= x_std
+    cv = dio.get_cv()
+    sc = PlattScaler(GradientBoostingClassifier(n_estimators=1000,max_depth=2,
+        random_state=21,learn_rate=0.1,subsample=0.5))
+    losses = []
+    heldpred = []
+    for train,test in cv:
+        X_train, Y_train = x[train],y[train]
+        X_test, Y_test = x[test],y[test]
+        sc.fit(X_train,Y_train)
+        pred = sc.predict_proba(X_test)
+        heldpred.append(sc.predict_proba(held)[:,1])
+        ll = log_loss(Y_test, pred[:,1])
+        print(ll)
+        losses.append(ll)
+    print("Mean score is {0}".format(np.array(ll).mean()))
+    final_predictions = np.vstack(heldpred).mean(axis=0)
+    submission_handle = open(path.join(dio.model.sub_dir,'gradient_model1.csv'),'w')
+    for lab, pr in zip(labels, final_predictions):
+        submission_handle.write('"{0}",{1}'.format(lab,pr))
+    submission_handle.close()
