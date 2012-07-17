@@ -8,6 +8,7 @@ import re
 from collections import Counter
 import numpy as np
 import pandas
+from sklearn.ensemble import ExtraTreesClassifier
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -391,5 +392,25 @@ class processing():
         X_train[np.isnan(X_train)] = 0.0
         X_test[np.isnan(X_test)] = 0.0
         self.datamart.close()
-        return X_train, Y_train
 
+        return X_train, Y_train, X_test
+
+    def make_processed_data(self):
+        density_keep = 0.005
+        self.X_train, self.Y_train, self.X_test = self.get_munged_clean_data()
+        keep = []
+        col_length = self.X_train.shape[1]
+        for i in xrange(col_length):
+            if (self.X_train[:,i] != 0).sum() > density_keep:
+                keep.append(i)
+        self.X_train = self.X_train[:,keep]
+        self.X_test = self.X_test[:,keep]
+        self.feat_clf = ExtraTreesClassifier(n_estimators=1000, bootstrap=True,
+                compute_importances=True, oob_score=True, n_jobs=4,
+                random_state=21, verbose=1)
+        self.feat_clf.fit(self.X_train, self.Y_train)
+        feat_path = path.join(path.join(self.data_dir,'models'),'feature_selection')
+        np.save(path.join(feat_path,'xtrain'),self.X_train)
+        np.save(path.join(feat_path,'ytain'),self.Y_train)
+        np.save(path.join(feat_path,'xtest'),self.X_test)
+        np.save(path.join(feat_path,'feat_imp'),self.feat_clf.feature_importances_)
