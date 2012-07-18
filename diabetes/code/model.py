@@ -30,11 +30,12 @@ class processing():
         self.ordinal_threshold = 5
         self.uniq_threshold = 0.001
         self.datamart = pandas.HDFStore(path.join(self.data_dir, 'data.h5'))
+        self.cores = 8
 
     def strip_bad_characters(self,string):
         no_unicode = ''.join((c for c in string if 0 < ord(c) < 127))
-        no_html = re.sub('\&.*\;', '', no_unicode)
-        return no_html
+        no_bad = re.sub('\&.*\;', '', no_unicode)
+        return no_bad
 
     def load_file_handles(self):
         """ Creates connection to database and a helper cursor.
@@ -62,7 +63,7 @@ class processing():
         self.curr.execute("PRAGMA table_info({0})".format(table))
         return self.curr.fetchall()
 
-    def most_unique(self, list_o_stuff, n=50):
+    def most_unique(self, list_o_stuff, n=10):
         c = Counter(list_o_stuff)
         return [i[0] for i in c.most_common(n=n)]
 
@@ -141,6 +142,7 @@ class processing():
                     ),
                 '{0}_labs' : (
                     ('AbnormalFlags','mcom_0'), ('PanelName','mcom'),
+                    ('HL7Text', 'mcom')
                     ),
                 '{0}_medication' : (
                     ('MedicationNdcCode','mcom_0'),
@@ -261,11 +263,6 @@ class processing():
                             print("Error on raw: {0}".format(info))
                             self.test_patient_info[patient_guid][table_name] = np.nan
 
-
-
-
-
-
     def run(self):
         self.get_datasets()
 
@@ -325,7 +322,7 @@ class processing():
         X_train = X_train[:,keep]
         X_test = X_test[:,keep]
         feat_clf = ExtraTreesClassifier(n_estimators=1000, bootstrap=True,
-                compute_importances=True, oob_score=True, n_jobs=4,
+                compute_importances=True, oob_score=True, n_jobs=self.cores,
                 random_state=21, verbose=1)
         feat_clf.fit(X_train, Y_train)
         feat_path = path.join(path.join(self.data_dir,'models'),'feature_selection')
@@ -388,9 +385,6 @@ def fit_platt_logreg(score, y):
     score = np.asanyarray(score, dtype=np.float64).ravel()
 
     uniq = np.sort(np.unique(y))
-    if np.size(uniq) != 2:
-        raise ValueError('only binary classification is supported. classes: %s'
-                                                                        % uniq)
 
     # the score is standardized to make logloss and ddx_logloss
     # numerically stable
@@ -430,7 +424,6 @@ def fit_platt_logreg(score, y):
         gradient = np.array([dda_logloss, ddb_logloss])
         return gradient
 
-    # FIXME check if fmin_bfgs converges
     a, b = fmin_bfgs(logloss, [0, 0], ddx_logloss)
     return a / score_std, b - a * score_mean / score_std
 
@@ -447,6 +440,10 @@ class PlattScaler(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, y, cv=None, **fit_params):
         self._set_params(**fit_params)
+        indices = np.arange(X.shape[0])
+        np.random.shuffle(indices)
+        X = X[indices,:]
+        y = y[indices]
         if cv is None:
             cv = KFold(y.size, k=5)
 
@@ -467,6 +464,8 @@ class PlattScaler(BaseEstimator, ClassifierMixin):
         scores = np.concatenate(score_list)
 
         self.a, self.b = fit_platt_logreg(scores, yy)
+        print("Optimistic Log-loss: {0:f}".format(
+            log_loss(yy, (1./1. + np.exp(-(self.a *scores + self.b))))))
         self.classifier.fit(X, y)
         return self
 
@@ -476,41 +475,20 @@ class PlattScaler(BaseEstimator, ClassifierMixin):
         return np.hstack((1. - proba, proba))
 
     def predict(self, X):
-        #FIXME
         return self.predict_proba(X) > .5
 
-def gradient_boost_model(n=1000):
-    dio = data_io()
-    x,y = dio.get_training_data(n=n)
-    held,labels = dio.get_heldout_data(n=n)
-    x_mean = x.mean(axis=0)
-    x -= x_mean
-    x_std = x.std(axis=0)
-    x /= x_std
-    held -= x_mean
-    held /= x_std
-    cv = dio.get_cv()
-    sc = PlattScaler(GradientBoostingClassifier(n_estimators=1000,max_depth=2,
-        random_state=21,learn_rate=0.1,subsample=0.5))
-    losses = []
-    heldpred = []
-    for train,test in cv:
-        X_train, Y_train = x[train],y[train]
-        X_test, Y_test = x[test],y[test]
-        sc.fit(X_train,Y_train)
-        pred = sc.predict_proba(X_test)
-        heldpred.append(sc.predict_proba(held)[:,1])
-        ll = log_loss(Y_test, pred[:,1])
-        print(ll)
-        losses.append(ll)
-    print("Mean score is {0}".format(np.array(ll).mean()))
-    final_predictions = np.vstack(heldpred).mean(axis=0)
-    submission_handle = open(path.join(dio.model.sub_dir,'gradient_model1.csv'),'w')
-    for lab, pr in zip(labels, final_predictions):
-        submission_handle.write('"{0}",{1}'.format(lab,pr))
-    submission_handle.close()
+def write_prediction(pred):
+    p = processing()
+    file_handle = open(path.join(p.sub_dir,'prediction.csv'),'w')
+    d = data_io()
+    _,labels = d.get_heldout_data()
+    for prob, lab in zip(pred,labels):
+        file_handle.write('"{0}",{1}\n'.format(lab,prob))
+    file_handle.close()
+
 
 def from_the_top():
     p = processing()
     p.run()
     p.make_processed_data()
+    p.write_heldout_indices()
