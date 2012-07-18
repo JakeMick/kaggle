@@ -130,27 +130,41 @@ class processing():
                 '{0}_allMeds' : (
                     ('MedicationNdcCode','mcom_0'), ('UserGuid','mcom')
                     ),
+                '{0}_allergy' : (
+                    ('AllergyType','mcom_0'), ('ReactionName', 'mcom'),
+                    ('SeverityName', 'mcom')
+                    ),
                 '{0}_diagnosis' : (
                     ('ICD9Code','mcom_split_0'), ('Acute','mcom'),
                     ('UserGuid','mcom')
                     ),
-#                '{0}_labs' : (
-#                    ),
+                '{0}_labs' : (
+                    ('AbnormalFlags','mcom_0'), ('PanelName','mcom'),
+                    ),
                 '{0}_medication' : (
-                    ('MedicationNdcCode','mcom'),
+                    ('MedicationNdcCode','mcom_0'),
                         ),
-#                '{0}_patient' : (
-#                    ),
+                '{0}_patient' : (
+                    ('YearOfBirth', 'raw_0'), ('State', 'mcom'),
+                    ('Gender', 'mcom')
+                    ),
 #                '{0}_patientCondition' : (
 #                    ),
 #                '{0}_patientSmokingStatus' : (
 #                    ),
-#                '{0}_patientTranscript' : (
-#                    ),
-#                '{0}_prescription' : (
-#                    ),
-#                '{0}_smoke' : (
-#                    ),
+                '{0}_patientTranscript' : (
+                    ('Height', 'raw_0'), ('Weight', 'rignorezero'),
+                    ('BMI', 'rignorezero'), ('SystolicBP', 'raw'),
+                    ('DiastolicBP', 'raw'), ('RespiratoryRate', 'raw'),
+                    ('Temperature', 'raw')
+                    ),
+                '{0}_prescription' : (
+                    ('GenericAllowed','mcom_0'), ('RefillAsNeeded', 'mcom'),
+                    ('NumberOfRefills','raw'), ('PrescriptionGuid','mcom')
+                    ),
+                '{0}_smoke' : (
+                    ('SmokingStatus_NISTCode','raw'),
+                    ),
 #                '{0}_transcript' : (
 #                    )
         }
@@ -183,13 +197,11 @@ class processing():
                         for patient_guid, info in zip(tr_patient,tr_info):
                             if table_name not in self.train_patient_info[patient_guid]:
                                 self.train_patient_info[patient_guid][table_name] = 0
-                            else:
-                                self.train_patient_info[patient_guid][table_name] += 1
+                            self.train_patient_info[patient_guid][table_name] += 1
                         for patient_guid, info in zip(te_patient,te_info):
                             if table_name not in self.test_patient_info[patient_guid]:
                                 self.test_patient_info[patient_guid][table_name] = 0
-                            else:
-                                self.test_patient_info[patient_guid][table_name] += 1
+                            self.test_patient_info[patient_guid][table_name] += 1
 
                 if what_to_do[5:10] == 'split':
                     common_elements = self.split_mcom(tr_info)
@@ -198,27 +210,58 @@ class processing():
                         for patient_guid, info in zip(tr_patient,tr_info):
                             if table_name not in self.train_patient_info[patient_guid]:
                                 self.train_patient_info[patient_guid][table_name] = 0
-                            else:
-                                self.train_patient_info[patient_guid][table_name] += 1
+                            self.train_patient_info[patient_guid][table_name] += 1
                         for patient_guid, info in zip(te_patient,te_info):
                             if table_name not in self.test_patient_info[patient_guid]:
                                 self.test_patient_info[patient_guid][table_name] = 0
-                            else:
-                                self.test_patient_info[patient_guid][table_name] += 1
+                            self.test_patient_info[patient_guid][table_name] += 1
 
 
-                if what_to_do[-1] == 0:
+                if what_to_do[-1] == '0':
                     count_of_table = table.format('count')
                     for patient_guid, info in zip(tr_patient,tr_info):
                         if count_of_table not in self.train_patient_info[patient_guid]:
                             self.train_patient_info[patient_guid][count_of_table] = 0
-                        else:
-                            self.train_patient_info[patient_guid][count_of_table] += 1
+                        self.train_patient_info[patient_guid][count_of_table] += 1
                     for patient_guid, info in zip(te_patient,te_info):
                         if count_of_table not in self.test_patient_info[patient_guid]:
                             self.test_patient_info[patient_guid][count_of_table] = 0
-                        else:
-                            self.test_patient_info[patient_guid][count_of_table] += 1
+                        self.test_patient_info[patient_guid][count_of_table] += 1
+
+                if what_to_do[:3] == 'raw':
+                    table_name = '{0}_{1}'.format(table.format(target_column), 'raw')
+                    for patient_guid, info in zip(tr_patient,tr_info):
+                        try:
+                            self.train_patient_info[patient_guid][table_name] = float(info)
+                        except:
+                            self.train_patient_info[patient_guid][table_name] = np.nan
+                    for patient_guid, info in zip(te_patient,te_info):
+                         try:
+                            self.test_patient_info[patient_guid][table_name] = float(info)
+                         except:
+                            self.test_patient_info[patient_guid][table_name] = np.nan
+
+                if what_to_do[:3] == 'rignorezero':
+                    table_name = '{0}_{1}'.format(table.format(target_column), 'raw')
+                    for patient_guid, info in zip(tr_patient,tr_info):
+                        try:
+                            if info == 0:
+                                self.train_patient_info[patient_guid][table_name] = np.nan
+                            else:
+                                self.train_patient_info[patient_guid][table_name] = float(info)
+                        except:
+                            self.train_patient_info[patient_guid][table_name] = np.nan
+                    for patient_guid, info in zip(te_patient,te_info):
+                         try:
+                            if info == 0:
+                                self.test_patient_info[patient_guid][table_name] = np.nan
+                            else:
+                                self.test_patient_info[patient_guid][table_name] = float(info)
+                         except:
+                            print("Error on raw: {0}".format(info))
+                            self.test_patient_info[patient_guid][table_name] = np.nan
+
+
 
 
 
@@ -459,3 +502,7 @@ def gradient_boost_model(n=1000):
         submission_handle.write('"{0}",{1}'.format(lab,pr))
     submission_handle.close()
 
+def from_the_top():
+    p = processing()
+    p.run()
+    p.make_processed_data()
