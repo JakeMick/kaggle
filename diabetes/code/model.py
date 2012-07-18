@@ -13,6 +13,7 @@ from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier
 from sklearn.cross_validation import KFold
 from ml_metrics import log_loss
 from scipy.optimize import fmin_bfgs
+from scipy import stats
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 class processing():
@@ -216,7 +217,6 @@ class processing():
                                 self.test_patient_info[patient_guid][table_name] = 0
                             self.test_patient_info[patient_guid][table_name] += 1
 
-
                 if what_to_do[-1] == '0':
                     count_of_table = table.format('count')
                     for patient_guid, info in zip(tr_patient,tr_info):
@@ -306,8 +306,11 @@ class processing():
         X_test_nan = np.isnan(X_test)
         X_train = np.hstack((X_train,X_train_nan))
         X_test = np.hstack((X_test,X_test_nan))
-        X_train[np.isnan(X_train)] = 0.0
-        X_test[np.isnan(X_test)] = 0.0
+        X_train_median = stats.nanmedian(X_train,axis=0)
+        for i in xrange(X_train.shape[1]):
+            X_train[np.isnan(X_train[:,i]),i] = X_train_median[i]
+        for i in xrange(X_test.shape[1]):
+            X_test[np.isnan(X_test[:,i]),i] = X_train_median[i]
 
         return X_train, Y_train, X_test
 
