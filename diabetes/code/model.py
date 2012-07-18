@@ -381,6 +381,9 @@ class data_io:
 
 
 def fit_platt_logreg(score, y):
+    """
+    https://github.com/paolo-losi/scikit-learn/blob/calibration/scikits/learn/calibration/platt.py
+    """
     y = np.asanyarray(y).ravel()
     score = np.asanyarray(score, dtype=np.float64).ravel()
 
@@ -433,7 +436,9 @@ def fit_platt_logreg(score, y):
 
 
 class PlattScaler(BaseEstimator, ClassifierMixin):
-    """Predicting Good Probabilities With Supervised Learning"""
+    """Predicting Good Probabilities With Supervised Learning
+    https://github.com/paolo-losi/scikit-learn/blob/calibration/scikits/learn/calibration/platt.py
+    """
 
     def __init__(self, classifier):
         self.classifier = classifier
