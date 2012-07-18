@@ -146,141 +146,10 @@ class processing():
 
         self.train_patient_info = {}
         self.test_patient_info = {}
-        definitely_numeric = set(['MedicationStrength'])
         for table in datanames:
             train_table = table.format('training')
             test_table = table.format('test')
             columns = self.get_column_names(train_table)
-            for col in columns:
-                col = list(col)
-                col[1] = self.strip_bad_characters(col[1])
-                # FIXME: formatting issues?
-                if col[1][-2] == ':':
-                    pass
-                else:
-                    try:
-                        train_values = self.get_tables_column(
-                                train_table, col[1])
-                        # Used to lazily pass over tables not in test
-                        test_values = self.get_tables_column(
-                                test_table, col[1])
-                    except:
-                        print("Column {0} failed on table {1}".format(col[1],table))
-                        continue
-                    train_both = self.get_tables_column_patient(
-                            train_table, col[1])
-                    test_both = self.get_tables_column_patient(
-                            test_table, col[1])
-                    elems = self.unique_second_element(train_both)
-                    resp = str(table.format('wut') + col[1])
-
-                    if self.test_if_fake_int(train_values):
-                        if self.is_list_unique(train_both):
-                            if len(elems) <= self.ordinal_threshold:
-                                print("Type A")
-                                print(table, col)
-                                for e in elems:
-                                    # Ignore second element of binary variables
-                                    if len(elems) == 2 and elems[1] == e:
-                                        pass
-                                    else:
-                                       for train, test in zip(train_both, test_both):
-                                            # One patientID per table
-                                            # Categorical/ordinal responses
-                                            self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                            self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-
-                                            self.train_patient_info[train[0]][resp+'_'+str(e)] = int(train[1] == e)
-                                            self.test_patient_info[test[0]][resp+'_'+str(e)] = int(test[1] == e)
-                            else:
-                                print("Type B")
-                                print(table, col)
-                                for train, test in zip(train_both, test_both):
-                                    # One patientID per table
-                                    # Lots of numerical responses
-                                    self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                    self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-
-                                    self.train_patient_info[train[0]][resp] = train[1]
-                                    self.test_patient_info[test[0]][resp] = test[1]
-                        else:
-                            for train, test in zip(train_both, test_both):
-                            # Count table occurences
-                                self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
- 
-                                resp_cn = resp + str('_'+'count')
-                                if resp_cn not in self.train_patient_info[train[0]]:
-                                    self.train_patient_info[train[0]][resp_cn] = 0
-                                if resp_cn not in self.test_patient_info[test[0]]:
-                                    self.test_patient_info[test[0]][resp_cn] = 0
-                                self.train_patient_info[train[0]][resp_cn] += 1
-                                self.test_patient_info[test[0]][resp_cn] += 1
-
-                            if len(elems) <= self.ordinal_threshold:
-                                print("Type C")
-                                print(table, col)
-                                for e in elems:
-                                    for train, test in zip(train_both, test_both):
-                                        # Greater than one patientID per table
-                                        # Categorical/ordinal responses
-                                        self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                        self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-                                        resp_e = resp + '_'+str(e)
-                                        if resp_e not in self.train_patient_info[train[0]]:
-                                            self.train_patient_info[train[0]][resp_e] = 0
-                                        if resp_e not in self.test_patient_info[test[0]]:
-                                            self.test_patient_info[test[0]][resp_e] = 0
-                                        self.train_patient_info[train[0]][resp_e] += int(train[1] == e)
-                                        self.test_patient_info[test[0]][resp_e] += int(test[1] == e)
-                            else:
-                                cn_ids = {}
-                                cn_ids['train'] = {}
-                                cn_ids['test'] = {}
-                                print("Type D")
-                                print(table, col)
- 
-                                for train, test in zip(train_both, test_both):
-                                    # Multiple patientID
-                                    # Multiple numerical responses
-                                    # FIXME in postprocessing
-                                    self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                    self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-                                    if train[0] not in cn_ids['train']:
-                                        cn_ids['train'][train[0]] = 0
-                                    else:
-                                        cn_ids['train'][train[0]] += 1
-                                    if test[0] not in cn_ids['test']:
-                                        cn_ids['test'][test[0]] = 0
-                                    else:
-                                        cn_ids['test'][test[0]] += 1
-                                    resp = str(col[1])
-                                    self.train_patient_info[train[0]][resp + '_DUMMY_'+str(
-                                        cn_ids['train'][train[0]])]= train[1]
-                                    self.test_patient_info[test[0]][resp + '_DUMMY_'+str(
-                                        cn_ids['test'][test[0]])]= test[1]
-
-                    elif col[1] in definitely_numeric:
-                        # FIXME?: ignores dosage quantities.
-                        pass
-                    else:
-                        # Categorical/Nominal
-                        most_elements = self.most_unique([t[1] for t in train_both])
-                        print("Type E")
-                        print(table, col)
-                        for e in most_elements:
-                            for train, test in zip(train_both, test_both):
-                                self.train_patient_info = self.add_subdict(self.train_patient_info, train[0])
-                                self.test_patient_info = self.add_subdict(self.test_patient_info, test[0])
-                                resp_e = resp+'_'+str(e)
-
-                                if resp_e not in self.train_patient_info[train[0]]:
-                                    self.train_patient_info[train[0]][resp_e] = 0
-                                if resp_e not in self.test_patient_info[test[0]]:
-                                    self.test_patient_info[test[0]][resp_e] = 0
-
-                                self.train_patient_info[train[0]][resp_e] += int(train[1] == e)
-                                self.test_patient_info[test[0]][resp_e] += int(test[1] == e)
 
     def run(self):
         self.get_datasets()
@@ -396,12 +265,11 @@ class processing():
         X_test = np.hstack((X_test,X_test_nan))
         X_train[np.isnan(X_train)] = 0.0
         X_test[np.isnan(X_test)] = 0.0
-        self.datamart.close()
 
         return X_train, Y_train, X_test
 
     def make_processed_data(self):
-        density_keep = 0.005
+        density_keep = 0.000005
         X_train, Y_train, X_test = self.get_munged_clean_data()
         keep = []
         col_length = X_train.shape[1]
@@ -421,18 +289,17 @@ class processing():
         np.save(path.join(feat_path,'feat_imp'),feat_clf.feature_importances_)
 
     def write_heldout_indices(self):
-        train = self.datamart['train']
+        train = self.datamart['test']
         ha = open(path.join(path.join(path.join(self.data_dir,'models'),
             'feature_selection'),'held_index.csv'),'w')
         writeme = csv.writer(ha)
         for row in train.index.tolist():
             writeme.writerow(row)
-            ha.close()
+        ha.close()
 
 class data_io:
     def __init__(self):
         self.model = processing()
-        self.model.datamart.close()
         self.feat_path = path.join(path.join(self.model.data_dir,'models'),'feature_selection')
         self.feat_imp = np.load(path.join(self.feat_path,'feat_imp.npy'))
         self.sort_feat_imp = self.feat_imp.copy()
@@ -588,3 +455,4 @@ def gradient_boost_model(n=1000):
     for lab, pr in zip(labels, final_predictions):
         submission_handle.write('"{0}",{1}'.format(lab,pr))
     submission_handle.close()
+
