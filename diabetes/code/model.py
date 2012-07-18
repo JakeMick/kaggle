@@ -44,8 +44,13 @@ class processing():
     def get_tables_column(self, table, column_name):
         super_query = self.conn.execute("SELECT {0} from {1}".format(
             column_name, table))
-
         return super_query.fetchall()
+
+    def get_tables_patient_column(self, table, column_name):
+        super_query = self.conn.execute("SELECT PatientGuid,{0} from {1}".format(
+            column_name, table))
+        return super_query.fetchall()
+
 
     def get_tables_column_where(self, column_name, table, target, stuff):
         super_query = self.conn.execute("SELECT {0} from {1} where {2}={3}".format(
@@ -56,16 +61,9 @@ class processing():
         self.curr.execute("PRAGMA table_info({0})".format(table))
         return self.curr.fetchall()
 
-    def most_unique(self, list_o_stuff):
+    def most_unique(self, list_o_stuff, n=50):
         c = Counter(list_o_stuff)
-        size = len(list_o_stuff)
-        common_stuff = []
-        for stuff, count in  c.most_common():
-            if float(count)/float(size) <= self.uniq_threshold:
-                break
-            else:
-                common_stuff.append(stuff)
-        return common_stuff
+        return [i[0] for i in c.most_common(n=n)]
 
     def test_if_fake_int(self, list_o_stuff):
         for v in list_o_stuff:
@@ -121,35 +119,109 @@ class processing():
             dic[sub_name] = {}
         return dic
 
-    def get_datasets(self):
-        datanames = [
-        '{0}_allMeds',
-        '{0}_allergy',
-        '{0}_diagnosis',
-#       '{0}_immunization',
-#       '{0}_labObservation',
-#       '{0}_labPanel',
-        '{0}_labResult',
-        '{0}_labs',
-        '{0}_medication',
-        '{0}_patient',
-        '{0}_patientCondition',
-        '{0}_patientSmokingStatus',
-        '{0}_patientTranscript',
-        '{0}_prescription',
-        '{0}_smoke',
-        '{0}_transcript',
-#       '{0}_transcriptAllergy',
-#       '{0}_transcriptDiagnosis',
-#       '{0}_transcriptMedication'
-        ]
+    def split_mcom(self, list_o_stuff, n=50):
+        """Get the n most common first element split on the periods"""
+        split_common_values = self.most_unique(
+                [l.split('.')[0] for l in list_o_stuff], n=n)
+        return split_common_values
 
+    def get_datasets(self):
+        tablenames = {
+                '{0}_allMeds' : (
+                    ('MedicationNdcCode','mcom_0'), ('UserGuid','mcom')
+                    ),
+                '{0}_diagnosis' : (
+                    ('ICD9Code','mcom_split_0'), ('Acute','mcom'),
+                    ('UserGuid','mcom')
+                    ),
+#                '{0}_labs' : (
+#                    ),
+                '{0}_medication' : (
+                    ('MedicationNdcCode','mcom'),
+                        ),
+#                '{0}_patient' : (
+#                    ),
+#                '{0}_patientCondition' : (
+#                    ),
+#                '{0}_patientSmokingStatus' : (
+#                    ),
+#                '{0}_patientTranscript' : (
+#                    ),
+#                '{0}_prescription' : (
+#                    ),
+#                '{0}_smoke' : (
+#                    ),
+#                '{0}_transcript' : (
+#                    )
+        }
         self.train_patient_info = {}
         self.test_patient_info = {}
-        for table in datanames:
+        for table, column_nfo in tablenames.items():
             train_table = table.format('training')
             test_table = table.format('test')
-            columns = self.get_column_names(train_table)
+            for target_column, what_to_do in column_nfo:
+                tr_patient = []
+                tr_info = []
+                te_patient = []
+                te_info = []
+                train_patient_info = self.get_tables_column_patient(
+                        train_table, target_column)
+                test_patient_info = self.get_tables_column_patient(
+                        test_table, target_column)
+                for p,i in train_patient_info:
+                    tr_patient.append(p)
+                    tr_info.append(i)
+                    self.add_subdict(self.train_patient_info,p)
+                for p,i in test_patient_info:
+                    te_patient.append(p)
+                    te_info.append(i)
+                    self.add_subdict(self.test_patient_info,p)
+                if what_to_do[:4] == 'mcom':
+                    common_elements = self.most_unique(tr_info)
+                    for i in common_elements:
+                        table_name = '{0}_{1}'.format(table.format(target_column), i)
+                        for patient_guid, info in zip(tr_patient,tr_info):
+                            if table_name not in self.train_patient_info[patient_guid]:
+                                self.train_patient_info[patient_guid][table_name] = 0
+                            else:
+                                self.train_patient_info[patient_guid][table_name] += 1
+                        for patient_guid, info in zip(te_patient,te_info):
+                            if table_name not in self.test_patient_info[patient_guid]:
+                                self.test_patient_info[patient_guid][table_name] = 0
+                            else:
+                                self.test_patient_info[patient_guid][table_name] += 1
+
+                if what_to_do[5:10] == 'split':
+                    common_elements = self.split_mcom(tr_info)
+                    for i in common_elements:
+                        table_name = '{0}_{1}'.format(table.format(target_column), i)
+                        for patient_guid, info in zip(tr_patient,tr_info):
+                            if table_name not in self.train_patient_info[patient_guid]:
+                                self.train_patient_info[patient_guid][table_name] = 0
+                            else:
+                                self.train_patient_info[patient_guid][table_name] += 1
+                        for patient_guid, info in zip(te_patient,te_info):
+                            if table_name not in self.test_patient_info[patient_guid]:
+                                self.test_patient_info[patient_guid][table_name] = 0
+                            else:
+                                self.test_patient_info[patient_guid][table_name] += 1
+
+
+                if what_to_do[-1] == 0:
+                    count_of_table = table.format('count')
+                    for patient_guid, info in zip(tr_patient,tr_info):
+                        if count_of_table not in self.train_patient_info[patient_guid]:
+                            self.train_patient_info[patient_guid][count_of_table] = 0
+                        else:
+                            self.train_patient_info[patient_guid][count_of_table] += 1
+                    for patient_guid, info in zip(te_patient,te_info):
+                        if count_of_table not in self.test_patient_info[patient_guid]:
+                            self.test_patient_info[patient_guid][count_of_table] = 0
+                        else:
+                            self.test_patient_info[patient_guid][count_of_table] += 1
+
+
+
 
     def run(self):
         self.get_datasets()
@@ -163,87 +235,15 @@ class processing():
                 self.train_patient_info[patientID]['Target'] = dmindicator
 
         self.train_df = pandas.DataFrame(self.train_patient_info)
-        del self.train_patient_info
         self.test_df = pandas.DataFrame(self.test_patient_info)
-        del self.test_patient_info
 
-        del self.train_df['patientGuid']
-        indices = self.train_df.index.tolist()
         self.train_df = self.train_df.transpose()
-        for i in indices:
-            self.train_df[i][self.train_df[i] == 'NULL'] = np.nan
         self.train_df = self.train_df.astype(float)
 
-        easy_rm = []
-        for i in indices:
-            if re.search('PatientGuid', i):
-                easy_rm.append(i)
-        for i in easy_rm:
-            del self.train_df[i]
-
-        easy_rm = []
-        for i in indices:
-            if re.search('DUMMY', i):
-                easy_rm.append(i)
-
-        index_info = set([])
-        for i in easy_rm:
-            lol = i.split('_')[0]
-            if lol not in index_info:
-                index_info.add(lol)
-        index_dict = {}
-        for i in index_info:
-            index_dict[i] = []
-            for j in easy_rm:
-                if re.match(i, j.split('_')[0]):
-                    index_dict[i].append(j)
-
-        for name,sub in index_dict.items():
-            self.train_df[name+'_max'] = self.train_df[sub].max(axis=1, skipna=True)
-            self.train_df[name+'_min'] = self.train_df[sub].min(axis=1, skipna=True)
-            self.train_df[name+'_median'] = self.train_df[sub].median(axis=1, skipna=True)
-            self.train_df[name+'_std'] = self.train_df[sub].std(axis=1, skipna=True)
-            for i in sub:
-                del self.train_df[i]
-
-        del self.test_df['patientGuid']
-        indices = self.test_df.index.tolist()
         self.test_df = self.test_df.transpose()
-        for i in indices:
-            self.test_df[i][self.test_df[i] == 'NULL'] = np.nan
         self.test_df = self.test_df.astype(float)
 
-        easy_rm = []
-        for i in indices:
-            if re.search('PatientGuid', i):
-                easy_rm.append(i)
-        for i in easy_rm:
-            del self.test_df[i]
 
-        easy_rm = []
-        for i in indices:
-            if re.search('DUMMY', i):
-                easy_rm.append(i)
-
-        index_info = set([])
-        for i in easy_rm:
-            lol = i.split('_')[0]
-            if lol not in index_info:
-                index_info.add(lol)
-        index_dict = {}
-        for i in index_info:
-            index_dict[i] = []
-            for j in easy_rm:
-                if re.match(i, j.split('_')[0]):
-                    index_dict[i].append(j)
-
-        for name,sub in index_dict.items():
-            self.test_df[name+'_max'] = self.test_df[sub].max(axis=1, skipna=True)
-            self.test_df[name+'_min'] = self.test_df[sub].min(axis=1, skipna=True)
-            self.test_df[name+'_median'] = self.test_df[sub].median(axis=1, skipna=True)
-            self.test_df[name+'_std'] = self.test_df[sub].std(axis=1, skipna=True)
-            for i in sub:
-                del self.test_df[i]
         self.datamart['train'] = self.train_df
         self.datamart['test'] = self.test_df
 
@@ -284,16 +284,16 @@ class processing():
         feat_clf.fit(X_train, Y_train)
         feat_path = path.join(path.join(self.data_dir,'models'),'feature_selection')
         np.save(path.join(feat_path,'xtrain'),X_train)
-        np.save(path.join(feat_path,'ytain'),Y_train)
+        np.save(path.join(feat_path,'ytrain'),Y_train)
         np.save(path.join(feat_path,'xtest'),X_test)
         np.save(path.join(feat_path,'feat_imp'),feat_clf.feature_importances_)
 
     def write_heldout_indices(self):
-        train = self.datamart['test']
+        test = self.datamart['test']
         ha = open(path.join(path.join(path.join(self.data_dir,'models'),
             'feature_selection'),'held_index.csv'),'w')
         writeme = csv.writer(ha)
-        for row in train.index.tolist():
+        for row in test.index.tolist():
             writeme.writerow(row)
         ha.close()
 
@@ -307,7 +307,10 @@ class data_io:
         self.sort_feat_imp = self.sort_feat_imp[::-1]
 
     def _n_important_features(self,n=100):
-        return self.feat_imp > self.sort_feat_imp[n]
+        if n > self.sort_feat_imp.shape[0]:
+            return self.feat_imp > 0.0
+        else:
+            return self.feat_imp > self.sort_feat_imp[n]
 
     def get_training_data(self,n=100):
         X_train = np.load(path.join(self.feat_path,'xtrain.npy'))
