@@ -9,13 +9,13 @@ from collections import Counter
 import csv
 import numpy as np
 import pandas
-from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier
+from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifer
 from sklearn.cross_validation import KFold
 from ml_metrics import log_loss
 from scipy.optimize import fmin_bfgs
 from scipy import stats
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.decomposition import RandomizedPCA
+from sklearn.decomposition import PCA
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -64,7 +64,7 @@ class processing():
         self.curr.execute("PRAGMA table_info({0})".format(table))
         return self.curr.fetchall()
 
-    def most_unique(self, list_o_stuff, n=5000):
+    def most_unique(self, list_o_stuff, n=500):
         c = Counter(list_o_stuff)
         return [i[0] for i in c.most_common(n=n)]
 
@@ -230,7 +230,7 @@ class processing():
                         if count_of_table not in self.test_patient_info[patient_guid]:
                             self.test_patient_info[patient_guid][count_of_table] = 0
                         self.test_patient_info[patient_guid][count_of_table] += 1
-
+                # FIXME
                 if what_to_do[:3] == 'raw':
                     table_name = '{0}_{1}'.format(table.format(target_column), 'raw')
                     for patient_guid, info in zip(tr_patient,tr_info):
@@ -277,6 +277,9 @@ class processing():
         self.train_df = pandas.DataFrame(self.train_patient_info)
         self.test_df = pandas.DataFrame(self.test_patient_info)
 
+        del self.train_patient_info
+        del self.test_patient_info
+
         self.train_df = self.train_df.transpose()
         self.train_df = self.train_df.astype(float)
 
@@ -288,8 +291,6 @@ class processing():
         self.datamart['test'] = self.test_df
         del self.test_df
         del self.train_df
-        del self.train_patient_info
-        del self.test_patient_info
 
     def get_munged_clean_data(self):
         train_df = self.datamart['train']
@@ -323,8 +324,7 @@ class processing():
         X_train, Y_train, X_test = self.get_munged_clean_data()
         print("Dropping singular components from {0} components.".format(
             X_train.shape[1]))
-        p = RandomizedPCA(whiten=True, n_components=1000,
-                iterated_power=5, random_state=21)
+        p = PCA(whiten=True, n_components=0.9999)
         p.fit(X_train)
         X_train = p.transform(X_train)
         print("Retained components {0}".format(X_train.shape[1]))
@@ -496,6 +496,9 @@ def write_prediction(pred):
     for prob, lab in zip(pred,labels):
         file_handle.write('"{0}",{1}\n'.format(lab,prob))
     file_handle.close()
+
+def rf_bench():
+    clf = RandomForestClassifer
 
 
 def from_the_top():
