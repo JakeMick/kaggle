@@ -15,6 +15,7 @@ from ml_metrics import log_loss
 from scipy.optimize import fmin_bfgs
 from scipy import stats
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.decomposition import RandomizedPCA
 
 class processing():
     """ Helper class pulls data into numpy array.
@@ -63,7 +64,7 @@ class processing():
         self.curr.execute("PRAGMA table_info({0})".format(table))
         return self.curr.fetchall()
 
-    def most_unique(self, list_o_stuff, n=10):
+    def most_unique(self, list_o_stuff, n=5000):
         c = Counter(list_o_stuff)
         return [i[0] for i in c.most_common(n=n)]
 
@@ -121,10 +122,10 @@ class processing():
             dic[sub_name] = {}
         return dic
 
-    def split_mcom(self, list_o_stuff, n=50):
+    def split_mcom(self, list_o_stuff):
         """Get the n most common first element split on the periods"""
         split_common_values = self.most_unique(
-                [l.split('.')[0] for l in list_o_stuff], n=n)
+                [l.split('.')[0] for l in list_o_stuff])
         return split_common_values
 
     def get_datasets(self):
@@ -260,7 +261,6 @@ class processing():
                             else:
                                 self.test_patient_info[patient_guid][table_name] = float(info)
                          except:
-                            print("Error on raw: {0}".format(info))
                             self.test_patient_info[patient_guid][table_name] = np.nan
 
     def run(self):
@@ -286,6 +286,10 @@ class processing():
 
         self.datamart['train'] = self.train_df
         self.datamart['test'] = self.test_df
+        del self.test_df
+        del self.train_df
+        del self.train_patient_info
+        del self.test_patient_info
 
     def get_munged_clean_data(self):
         train_df = self.datamart['train']
@@ -298,7 +302,9 @@ class processing():
 
         assert np.all(train_df.columns == test_df.columns)
         X_train = np.array(train_df)
+        del train_df
         X_test = np.array(test_df)
+        del test_df
         X_train_nan = np.isnan(X_train)
         X_test_nan = np.isnan(X_test)
         X_train = np.hstack((X_train,X_train_nan))
@@ -308,24 +314,27 @@ class processing():
             X_train[np.isnan(X_train[:,i]),i] = X_train_median[i]
         for i in xrange(X_test.shape[1]):
             X_test[np.isnan(X_test[:,i]),i] = X_train_median[i]
-
+        keep_not_boring = X_train.std(axis=0) > 0.0
+        X_train = X_train[:,keep_not_boring]
+        X_test = X_test[:,keep_not_boring]
         return X_train, Y_train, X_test
 
     def make_processed_data(self):
-        density_keep = 0.000005
         X_train, Y_train, X_test = self.get_munged_clean_data()
-        keep = []
-        col_length = X_train.shape[1]
-        for i in xrange(col_length):
-            if (X_train[:,i] != 0).sum() > density_keep:
-                keep.append(i)
-        X_train = X_train[:,keep]
-        X_test = X_test[:,keep]
+        print("Dropping singular components from {0} components.".format(
+            X_train.shape[1]))
+        p = RandomizedPCA(whiten=True, n_components=1000,
+                iterated_power=5, random_state=21)
+        p.fit(X_train)
+        X_train = p.transform(X_train)
+        print("Retained components {0}".format(X_train.shape[1]))
+        X_test = p.transform(X_test)
         feat_clf = ExtraTreesClassifier(n_estimators=1000, bootstrap=True,
                 compute_importances=True, oob_score=True, n_jobs=self.cores,
                 random_state=21, verbose=1)
         feat_clf.fit(X_train, Y_train)
-        feat_path = path.join(path.join(self.data_dir,'models'),'feature_selection')
+        feat_path = path.join(
+                path.join(self.data_dir,'models'),'feature_selection')
         np.save(path.join(feat_path,'xtrain'),X_train)
         np.save(path.join(feat_path,'ytrain'),Y_train)
         np.save(path.join(feat_path,'xtest'),X_test)
@@ -427,6 +436,8 @@ def fit_platt_logreg(score, y):
     a, b = fmin_bfgs(logloss, [0, 0], ddx_logloss)
     return a / score_std, b - a * score_mean / score_std
 
+def scale_platt_values(score, a, b):
+    return 1. / (1. + np.exp(-(a * score + b)))
 
 class PlattScaler(BaseEstimator, ClassifierMixin):
     """Predicting Good Probabilities With Supervised Learning
@@ -489,6 +500,8 @@ def write_prediction(pred):
 
 def from_the_top():
     p = processing()
+    print("Run")
     p.run()
+    print("Process")
     p.make_processed_data()
     p.write_heldout_indices()
