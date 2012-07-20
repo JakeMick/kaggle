@@ -9,7 +9,7 @@ from collections import Counter
 import csv
 import numpy as np
 import pandas
-from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifer
+from sklearn.ensemble import ExtraTreesClassifier, GradientBoostingClassifier, RandomForestClassifier
 from sklearn.cross_validation import KFold
 from ml_metrics import log_loss
 from scipy.optimize import fmin_bfgs
@@ -324,12 +324,12 @@ class processing():
         X_train, Y_train, X_test = self.get_munged_clean_data()
         print("Dropping singular components from {0} components.".format(
             X_train.shape[1]))
-        p = PCA(whiten=True, n_components=0.9999)
+        p = PCA(whiten=True, n_components=1000)
         p.fit(X_train)
         X_train = p.transform(X_train)
         print("Retained components {0}".format(X_train.shape[1]))
         X_test = p.transform(X_test)
-        feat_clf = ExtraTreesClassifier(n_estimators=1000, bootstrap=True,
+        feat_clf = ExtraTreesClassifier(n_estimators=10000, bootstrap=True,
                 compute_importances=True, oob_score=True, n_jobs=self.cores,
                 random_state=21, verbose=1)
         feat_clf.fit(X_train, Y_train)
@@ -362,7 +362,7 @@ class data_io:
         if n > self.sort_feat_imp.shape[0]:
             return self.feat_imp > 0.0
         else:
-            return self.feat_imp > self.sort_feat_imp[n]
+            return self.feat_imp > self.sort_feat_imp[n - 1]
 
     def get_training_data(self,n=100):
         X_train = np.load(path.join(self.feat_path,'xtrain.npy'))
@@ -498,7 +498,7 @@ def write_prediction(pred):
     file_handle.close()
 
 def rf_bench():
-    clf = RandomForestClassifer
+    clf = RandomForestClassifier(n_estimators=200,oob_score=True, bootstrap=True, n_jobs=8)
 
 
 def from_the_top():
