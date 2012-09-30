@@ -324,13 +324,13 @@ class processing():
         X_train, Y_train, X_test = self.get_munged_clean_data()
         print("Dropping singular components from {0} components.".format(
             X_train.shape[1]))
-        p = PCA(whiten=True, n_components=1000)
-        p.fit(X_train)
-        X_train = p.transform(X_train)
-        print("Retained components {0}".format(X_train.shape[1]))
-        X_test = p.transform(X_test)
-        feat_clf = ExtraTreesClassifier(n_estimators=10000, bootstrap=True,
-                compute_importances=True, oob_score=True, n_jobs=self.cores,
+        #p = PCA(whiten=True, n_components=1000)
+        #p.fit(X_train)
+        #X_train = p.transform(X_train)
+        #print("Retained components {0}".format(X_train.shape[1]))
+        #X_test = p.transform(X_test)
+        feat_clf = ExtraTreesClassifier(n_estimators=1000, bootstrap=True,
+                compute_importances=True, oob_score=True, n_jobs=4,
                 random_state=21, verbose=1)
         feat_clf.fit(X_train, Y_train)
         feat_path = path.join(
@@ -385,6 +385,18 @@ class data_io:
         self.labels = labels
         return heldout[:,self._n_important_features(n=n)], labels
 
+    def get_train_valid_test(self):
+        x,y = self.get_training_data(n=113)
+        inds = np.arange(y.shape[0])
+        np.random.shuffle(inds)
+        X_train, Y_train = x[inds[:8000],:], y[inds[:8000]]
+        X_test, Y_test = x[inds[8000:9000],:], y[inds[8000:9000]]
+        X_valid, Y_valid = x[inds[9000:],:], y[inds[9000:]]
+        all_tup = [(X_train, Y_train), (X_test, Y_test), (X_valid, Y_valid)]
+        for i in all_tup:
+            for j in i:
+                print(j.shape)
+        return all_tup
 
 def fit_platt_logreg(score, y):
     """
@@ -499,7 +511,6 @@ def write_prediction(pred):
 
 def rf_bench():
     clf = RandomForestClassifier(n_estimators=200,oob_score=True, bootstrap=True, n_jobs=8)
-
 
 def from_the_top():
     p = processing()
