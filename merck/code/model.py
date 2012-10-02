@@ -40,10 +40,10 @@ class processing():
         current_path = path.dirname(path.abspath(__file__))
         parent_dir = path.dirname(current_path)
         self.prediction_fname = prediction_fname
-        self.fail_if_pred_fname_exists()
         self.data_dir = path.join(parent_dir, 'data')
         self.sub_dir = path.join(parent_dir, 'submissions')
         self.out_path = path.join(self.sub_dir, self.prediction_fname)
+        self.fail_if_pred_fname_exists()
         self.get_fnames()
         self.start = 0
         self.stop = len(self.training_fnames) - 1
@@ -115,19 +115,66 @@ def r_squared(pred, obs):
     return r**2
 
 def etr_model():
+    """etr.csv
+    Leaderboard: 0.41119
+    Personal: 0.661851
+    """
     print("Processing")
     p = processing(prediction_fname='etr.csv')
     etr = ensemble.ExtraTreesRegressor(bootstrap=True,
             compute_importances=True, oob_score=True,
             n_jobs=4, n_estimators=40)
+    all_r = 0
     for train_x, train_y, test_x, test_labels in p:
         print("Fitting model")
         etr.fit(train_x, train_y)
-        print("R^2 is:" + str(r_squared(etr.oob_prediction_, train_y)))
+        running_r = r_squared(etr.oob_prediction_, train_y)
+        all_r += running_r
+        print("R^2 is:" + str(running_r))
         print("Predicting on the test data")
         prediction = etr.predict(test_x)
         print("Writing out the prediction")
         p.append_prediction(prediction, test_labels)
+    print("Average R^2:" + str(all_r/15.0))
+
+def many_etr_model():
+    """many_etr.csv
+    Leaderboard: ???
+    Personal: ???
+    """
+    print("Processing")
+    p = processing(prediction_fname='many_etr.csv')
+    etr = ensemble.ExtraTreesRegressor(bootstrap=True,
+            oob_score=True, n_jobs=4, n_estimators=40)
+    rtr = ensemble.RandomForestRegressor(bootstrap=True,
+            oob_score=True, n_jobs=4, n_estimators=40)
+    all_r = 0
+    for train_x, train_y, test_x, test_labels in p:
+        print("Fitting model")
+        X_ensemble_of_ensembles = []
+        X_test_ensemble_of_ensemble = []
+        for d in xrange(40):
+            print(d)
+            etr.fit(train_x, train_y)
+            X_ensemble_of_ensembles.append(etr.oob_prediction_)
+            X_test_ensemble_of_ensemble.append(etr.predict(test_x))
+            rtr.fit(train_x, train_y)
+            X_ensemble_of_ensembles.append(rtr.oob_prediction_)
+            X_test_ensemble_of_ensemble.append(rtr.predict(test_x))
+        X_ensemble_of_ensembles = np.array(X_ensemble_of_ensembles)
+        X_test_ensemble_of_ensemble = np.array(X_test_ensemble_of_ensemble)
+        big_etr = ensemble.RandomForestRegressor(bootstrap=True,
+                oob_score=True, n_jobs=4, n_estimators=200)
+        big_etr.fit(X_ensemble_of_ensembles, train_y)
+        running_r = r_squared(big_etr.oob_prediction_, train_y)
+        all_r += running_r
+        print("R^2 is:" + str(running_r))
+        print("Predicting on the test data")
+        prediction = big_etr.predict(test_x)
+        print("Writing out the prediction")
+        p.append_prediction(prediction, test_labels)
+    print("Average R^2:" + str(all_r/15.0))
+
 
 if __name__ == "__main__":
-    etr_model()
+    many_etr_model()
