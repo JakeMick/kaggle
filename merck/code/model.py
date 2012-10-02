@@ -7,7 +7,8 @@ from os import path, listdir
 import numpy as np
 from scipy import stats
 import pandas
-from sklearn import ensemble
+from sklearn import ensemble, svm
+from sklearn.cross_validation import KFold
 
 class processing():
     """ Loops over the files and appends predictions.
@@ -175,6 +176,41 @@ def many_etr_model():
         p.append_prediction(prediction, test_labels)
     print("Average R^2:" + str(all_r/15.0))
 
+def svmmer():
+    """svm.csv"""
+    print("Processing")
+    p = processing(prediction_fname='svm.csv')
+    model = svm.NuSVR(nu=.8)
+    running_r = 0
+    ACT = 1
+    for train_x, train_y, test_x, test_labels in p:
+        print("ACT is: " + str(ACT))
+        cv += 1
+        Y_held = []
+        heldout_predictions = []
+        test_predictions = []
+        cv = KFold(n=train_x.shape[0], k=5)
+        fold = 1
+        for train_ind, test_ind in cv:
+            print("    Fold is: " + str(fold))
+            fold += 1
+            X_x = train_x[train_ind]
+            Y_x = train_y[train_ind]
+            X_t = train_x[test_ind]
+            Y_t = train_y[test_ind]
+            model.fit(X_x, Y_x)
+            heldout_predictions.append(model.predict(X_t))
+            test_predictions.append(model.predict(test_x))
+            Y_held.append(Y_t)
+        heldout_predictions = np.hstack(heldout_predictions)
+        Y_held = np.hstack(Y_held)
+        r_val = r_squared(heldout_predictions, Y_held)
+        print("R^2 is: " + str(r_val))
+        running_r += r_val
+        test_predictions = np.vstack(test_predictions)
+        test_predictions = test_predictions.mean(axis=0)
+        p.append_prediction(test_predictions, test_labels)
+    print("Average R^2 is: " + str(running_r/15.0))
 
 if __name__ == "__main__":
-    many_etr_model()
+    svmmer()
