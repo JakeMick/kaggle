@@ -182,10 +182,10 @@ def svmmer():
     p = processing(prediction_fname='svm.csv')
     model = svm.NuSVR(nu=.8)
     running_r = 0
-    ACT = 1
+    act = 1
     for train_x, train_y, test_x, test_labels in p:
-        print("ACT is: " + str(ACT))
-        cv += 1
+        print("ACT is: " + str(act))
+        act += 1
         Y_held = []
         heldout_predictions = []
         test_predictions = []
