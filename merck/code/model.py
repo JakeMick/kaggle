@@ -7,7 +7,7 @@ from os import path, listdir
 import numpy as np
 from scipy import stats
 import pandas
-from sklearn import ensemble, svm, linear_model
+from sklearn import ensemble, svm, linear_model, neighbors
 from sklearn.cross_validation import KFold, ShuffleSplit
 
 class processing():
@@ -285,32 +285,36 @@ def gradientboost():
     print("Average R^2 is: " + str(running_r/15.0))
 
 def fat_ensemble():
-    """fat_ensemble.csv"""
+    """fat_ensemble.csv
+    submitted"""
+
     print("Processing: Fat Ensemble")
     p = processing(prediction_fname='fat_ensemble.csv')
     running_r = 0
     act = 1
     models = [
+            neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
+            linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='elasticnet'),
             ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=100),
             ensemble.GradientBoostingRegressor(loss='ls', n_estimators=100),
-            ensemble.GradientBoostingRegressor(loss='lad', n_estimators=100),
             ensemble.GradientBoostingRegressor(loss='huber', n_estimators=100),
             ensemble.RandomForestRegressor(n_estimators=100, n_jobs=4, bootstrap=True),
             svm.NuSVR(kernel='rbf'),
-            svm.NuSVR(kernel='poly'),
-            svm.NuSVR(kernel='linear'),
-            svm.NuSVR(kernel='sigmoid'),
-            linear_model.Perceptron(shuffle=True, n_iter=200, n_jobs=4),
-            linear_model.SGDRegressor(loss='squared_loss', n_iter=100, shuffle=True),
-            linear_model.SGDRegressor(loss='huber', n_iter=100, shuffle=True)
           ]
     for train_x, train_y, test_x, test_labels in p:
         print("ACT is: " + str(act))
         act += 1
         heldout_predictions = []
         test_predictions = []
+        elems = (train_x.shape[0] * train_x.shape[1])
+        split = (elems * 8.0332e-9) + .08827
+        if split < 0.5:
+            split = 0.5
+        if split > 0.8:
+            split = 0.8
+        print(split)
         shuf_split = ShuffleSplit(n=train_x.shape[0],
-                n_iterations=1, test_size=0.6)
+                n_iterations=1, test_size=split)
         for tran_n, tes_n in shuf_split:
             n_train_x = train_x[tran_n]
             n_train_y = train_y[tran_n]
@@ -323,12 +327,15 @@ def fat_ensemble():
                 model_number += 1
                 m.fit(n_train_x, n_train_y)
                 heldout_predictions.append(m.predict(n_test_x))
+                print(str(r_squared(m.predict(n_test_x),n_test_y)))
                 test_predictions.append(m.predict(test_x))
-        heldout_predictions = np.vstack(heldout_predictions)
-        test_predictions = np.vstack(test_predictions)
+        heldout_predictions = np.vstack(heldout_predictions).T
+        test_predictions = np.vstack(test_predictions).T
         print("Master blending")
         etr = ensemble.ExtraTreesRegressor(bootstrap=True,
             oob_score=True, n_jobs=4, n_estimators=400)
+        print(heldout_predictions.shape)
+        print(n_test_y.shape)
         etr.fit(heldout_predictions, n_test_y)
         final_predictions = etr.predict(test_predictions)
         r_val = r_squared(etr.oob_prediction_,n_test_y)
@@ -337,5 +344,56 @@ def fat_ensemble():
         p.append_prediction(final_predictions, test_labels)
     print("Average R^2 is: " + str(running_r/15.0))
 
+def bootstrapped_fat_ensemble():
+    """boot_fat_ensemble.csv
+    """
+    n_iters = 4
+    split = 0.4
+    print("Processing: Boot Fat Ensemble")
+    p = processing(prediction_fname='boot_fat_ensemble.csv')
+    running_r = 0
+    models = [
+            neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
+            linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='elasticnet'),
+            ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=100),
+            ensemble.GradientBoostingRegressor(loss='ls', n_estimators=100),
+            ensemble.GradientBoostingRegressor(loss='huber', n_estimators=100),
+            ensemble.RandomForestRegressor(n_estimators=100, n_jobs=4, bootstrap=True),
+            svm.NuSVR(kernel='rbf'),
+          ]
+    for train_x, train_y, test_x, test_labels in p:
+        heldout_predictions = []
+        test_predictions = []
+        final_predictions = []
+        shuf_split = ShuffleSplit(n=train_x.shape[0],
+                n_iterations=n_iters, test_size=split)
+        for tran_n, tes_n in shuf_split:
+            n_train_x = train_x[tran_n]
+            n_train_y = train_y[tran_n]
+            n_test_x = train_x[tes_n]
+            n_test_y = train_y[tes_n]
+            model_number = 0
+            for m in models:
+                print(model_number)
+                print(str(m))
+                model_number += 1
+                m.fit(n_train_x, n_train_y)
+                heldout_predictions.append(m.predict(n_test_x))
+                print(str(r_squared(m.predict(n_test_x),n_test_y)))
+                test_predictions.append(m.predict(test_x))
+            heldout_predictions = np.vstack(heldout_predictions).T
+            test_predictions = np.vstack(test_predictions).T
+            print("Master blending")
+            etr = ensemble.ExtraTreesRegressor(bootstrap=True,
+                oob_score=True, n_jobs=4, n_estimators=400)
+            etr.fit(heldout_predictions, n_test_y)
+            final_predictions.append(etr.predict(test_predictions))
+            r_val = r_squared(etr.oob_prediction_,n_test_y)
+            print("R^2 is: " + str(r_val))
+            running_r += r_val
+        final_predictions = np.vstack(final_predictions).mean(axis=0)
+        p.append_prediction(final_predictions, test_labels)
+    print("Average R^2 is: " + str(running_r/(15.0*n_iters)))
+
 if __name__ == "__main__":
-    fat_ensemble()
+    bootstrapped_fat_ensemble()
