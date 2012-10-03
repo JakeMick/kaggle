@@ -146,15 +146,15 @@ def many_etr_model():
     print("Processing")
     p = processing(prediction_fname='many_etr.csv')
     etr = ensemble.ExtraTreesRegressor(bootstrap=True,
-            oob_score=True, n_jobs=4, n_estimators=40)
+            oob_score=True, n_jobs=2, n_estimators=10)
     rtr = ensemble.RandomForestRegressor(bootstrap=True,
-            oob_score=True, n_jobs=4, n_estimators=40)
+            oob_score=True, n_jobs=2, n_estimators=10)
     all_r = 0
     for train_x, train_y, test_x, test_labels in p:
         print("Fitting model")
         X_ensemble_of_ensembles = []
         X_test_ensemble_of_ensemble = []
-        for d in xrange(40):
+        for d in xrange(200):
             print(d)
             etr.fit(train_x, train_y)
             X_ensemble_of_ensembles.append(etr.oob_prediction_)
@@ -165,7 +165,7 @@ def many_etr_model():
         X_ensemble_of_ensembles = np.array(X_ensemble_of_ensembles)
         X_test_ensemble_of_ensemble = np.array(X_test_ensemble_of_ensemble)
         big_etr = ensemble.RandomForestRegressor(bootstrap=True,
-                oob_score=True, n_jobs=4, n_estimators=200)
+                oob_score=True, n_jobs=1, n_estimators=200)
         big_etr.fit(X_ensemble_of_ensembles, train_y)
         running_r = r_squared(big_etr.oob_prediction_, train_y)
         all_r += running_r
@@ -176,179 +176,12 @@ def many_etr_model():
         p.append_prediction(prediction, test_labels)
     print("Average R^2:" + str(all_r/15.0))
 
-def svmmer():
-    """svm.csv"""
-    print("Processing")
-    p = processing(prediction_fname='svm.csv')
-    model = svm.NuSVR(nu=.8)
-    running_r = 0
-    act = 1
-    for train_x, train_y, test_x, test_labels in p:
-        print("ACT is: " + str(act))
-        act += 1
-        Y_held = []
-        heldout_predictions = []
-        test_predictions = []
-        cv = KFold(n=train_x.shape[0], k=5)
-        fold = 1
-        for train_ind, test_ind in cv:
-            print("    Fold is: " + str(fold))
-            fold += 1
-            X_x = train_x[train_ind]
-            Y_x = train_y[train_ind]
-            X_t = train_x[test_ind]
-            Y_t = train_y[test_ind]
-            model.fit(X_x, Y_x)
-            heldout_predictions.append(model.predict(X_t))
-            test_predictions.append(model.predict(test_x))
-            Y_held.append(Y_t)
-        heldout_predictions = np.hstack(heldout_predictions)
-        Y_held = np.hstack(Y_held)
-        r_val = r_squared(heldout_predictions, Y_held)
-        print("R^2 is: " + str(r_val))
-        running_r += r_val
-        test_predictions = np.vstack(test_predictions)
-        test_predictions = test_predictions.mean(axis=0)
-        p.append_prediction(test_predictions, test_labels)
-    print("Average R^2 is: " + str(running_r/15.0))
-
-def multilasso():
-    """mlasso.csv"""
-    print("Processing")
-    p = processing(prediction_fname='mlasso.csv')
-    model = linear_model.MultiTaskLasso(alpha=0.1)
-    running_r = 0
-    act = 1
-    for train_x, train_y, test_x, test_labels in p:
-        print("ACT is: " + str(act))
-        act += 1
-        Y_held = []
-        heldout_predictions = []
-        test_predictions = []
-        cv = KFold(n=train_x.shape[0], k=5, shuffle=True)
-        fold = 1
-        for train_ind, test_ind in cv:
-            print("    Fold is: " + str(fold))
-            fold += 1
-            X_x = train_x[train_ind]
-            Y_x = train_y[train_ind]
-            X_t = train_x[test_ind]
-            Y_t = train_y[test_ind]
-            model.fit(X_x, Y_x)
-            heldout_predictions.append(model.predict(X_t))
-            test_predictions.append(model.predict(test_x))
-            Y_held.append(Y_t)
-        heldout_predictions = np.hstack(heldout_predictions)
-        Y_held = np.hstack(Y_held)
-        r_val = r_squared(heldout_predictions, Y_held)
-        print("R^2 is: " + str(r_val))
-        running_r += r_val
-        test_predictions = np.vstack(test_predictions)
-        test_predictions = test_predictions.mean(axis=0)
-        p.append_prediction(test_predictions, test_labels)
-    print("Average R^2 is: " + str(running_r/15.0))
-
-def gradientboost():
-    """gboost.csv"""
-    print("Processing: GradientBoost LS")
-    p = processing(prediction_fname='gboost.csv')
-    model = ensemble.GradientBoostingRegressor(loss='ls', n_estimators=200)
-    running_r = 0
-    act = 1
-    for train_x, train_y, test_x, test_labels in p:
-        print("ACT is: " + str(act))
-        act += 1
-        Y_held = []
-        heldout_predictions = []
-        test_predictions = []
-        cv = KFold(n=train_x.shape[0], k=5)
-        fold = 1
-        for train_ind, test_ind in cv:
-            print("    Fold is: " + str(fold))
-            fold += 1
-            X_x = train_x[train_ind]
-            Y_x = train_y[train_ind]
-            X_t = train_x[test_ind]
-            Y_t = train_y[test_ind]
-            model.fit(X_x, Y_x)
-            heldout_predictions.append(model.predict(X_t))
-            test_predictions.append(model.predict(test_x))
-            Y_held.append(Y_t)
-        heldout_predictions = np.hstack(heldout_predictions)
-        Y_held = np.hstack(Y_held)
-        r_val = r_squared(heldout_predictions, Y_held)
-        print("R^2 is: " + str(r_val))
-        running_r += r_val
-        test_predictions = np.vstack(test_predictions)
-        test_predictions = test_predictions.mean(axis=0)
-        p.append_prediction(test_predictions, test_labels)
-    print("Average R^2 is: " + str(running_r/15.0))
-
-def fat_ensemble():
-    """fat_ensemble.csv
-    submitted"""
-
-    print("Processing: Fat Ensemble")
-    p = processing(prediction_fname='fat_ensemble.csv')
-    running_r = 0
-    act = 1
-    models = [
-            neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
-            linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='elasticnet'),
-            ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=100),
-            ensemble.GradientBoostingRegressor(loss='ls', n_estimators=100),
-            ensemble.GradientBoostingRegressor(loss='huber', n_estimators=100),
-            ensemble.RandomForestRegressor(n_estimators=100, n_jobs=4, bootstrap=True),
-            svm.NuSVR(kernel='rbf'),
-          ]
-    for train_x, train_y, test_x, test_labels in p:
-        print("ACT is: " + str(act))
-        act += 1
-        heldout_predictions = []
-        test_predictions = []
-        elems = (train_x.shape[0] * train_x.shape[1])
-        split = (elems * 8.0332e-9) + .08827
-        if split < 0.5:
-            split = 0.5
-        if split > 0.8:
-            split = 0.8
-        print(split)
-        shuf_split = ShuffleSplit(n=train_x.shape[0],
-                n_iterations=1, test_size=split)
-        for tran_n, tes_n in shuf_split:
-            n_train_x = train_x[tran_n]
-            n_train_y = train_y[tran_n]
-            n_test_x = train_x[tes_n]
-            n_test_y = train_y[tes_n]
-            model_number = 0
-            for m in models:
-                print(model_number)
-                print(str(m))
-                model_number += 1
-                m.fit(n_train_x, n_train_y)
-                heldout_predictions.append(m.predict(n_test_x))
-                print(str(r_squared(m.predict(n_test_x),n_test_y)))
-                test_predictions.append(m.predict(test_x))
-        heldout_predictions = np.vstack(heldout_predictions).T
-        test_predictions = np.vstack(test_predictions).T
-        print("Master blending")
-        etr = ensemble.ExtraTreesRegressor(bootstrap=True,
-            oob_score=True, n_jobs=4, n_estimators=400)
-        print(heldout_predictions.shape)
-        print(n_test_y.shape)
-        etr.fit(heldout_predictions, n_test_y)
-        final_predictions = etr.predict(test_predictions)
-        r_val = r_squared(etr.oob_prediction_,n_test_y)
-        print("R^2 is: " + str(r_val))
-        running_r += r_val
-        p.append_prediction(final_predictions, test_labels)
-    print("Average R^2 is: " + str(running_r/15.0))
 
 def bootstrapped_fat_ensemble():
     """boot_fat_ensemble.csv
     """
     n_iters = 4
-    split = 0.4
+    split = 0.5
     print("Processing: Boot Fat Ensemble")
     p = processing(prediction_fname='boot_fat_ensemble.csv')
     running_r = 0
@@ -362,12 +195,12 @@ def bootstrapped_fat_ensemble():
             svm.NuSVR(kernel='rbf'),
           ]
     for train_x, train_y, test_x, test_labels in p:
-        heldout_predictions = []
-        test_predictions = []
         final_predictions = []
         shuf_split = ShuffleSplit(n=train_x.shape[0],
                 n_iterations=n_iters, test_size=split)
         for tran_n, tes_n in shuf_split:
+            heldout_predictions = []
+            test_predictions = []
             n_train_x = train_x[tran_n]
             n_train_y = train_y[tran_n]
             n_test_x = train_x[tes_n]
@@ -396,4 +229,4 @@ def bootstrapped_fat_ensemble():
     print("Average R^2 is: " + str(running_r/(15.0*n_iters)))
 
 if __name__ == "__main__":
-    bootstrapped_fat_ensemble()
+    many_etr_model()
