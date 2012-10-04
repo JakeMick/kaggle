@@ -27,6 +27,13 @@ class processing():
                     ...
                     ACT15_competition_test.csv
             submissions/
+    Note:
+        Approximately 1/4th of the lines from ACT1_competition_training.csv,
+        and ACT6_competition_training.csv were sampled using
+        (random.random() < .25).
+
+        All the Python packages used are uptodate from the ubuntu 12.04 and
+        neurodebian repository as of Oct 03 2012.
 
     Example:
         >>> p = processing(prediction_fname='glm.csv')
