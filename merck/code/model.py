@@ -185,7 +185,8 @@ def bootstrapped_fat_ensemble():
     print("Processing: Boot Fat Ensemble")
     p = processing(prediction_fname='boot_fat_ensemble.csv')
     running_r = 0
-    models = [
+    for train_x, train_y, test_x, test_labels in p:
+        models = [
             neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
             linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='elasticnet'),
             ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=100),
@@ -193,8 +194,7 @@ def bootstrapped_fat_ensemble():
             ensemble.GradientBoostingRegressor(loss='huber', n_estimators=100),
             ensemble.RandomForestRegressor(n_estimators=100, n_jobs=4, bootstrap=True),
             svm.NuSVR(kernel='rbf'),
-          ]
-    for train_x, train_y, test_x, test_labels in p:
+            ]
         final_predictions = []
         shuf_split = ShuffleSplit(n=train_x.shape[0],
                 n_iterations=n_iters, test_size=split)
@@ -229,4 +229,4 @@ def bootstrapped_fat_ensemble():
     print("Average R^2 is: " + str(running_r/(15.0*n_iters)))
 
 if __name__ == "__main__":
-    many_etr_model()
+    bootstrapped_fat_ensemble()
