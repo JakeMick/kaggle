@@ -145,45 +145,6 @@ def etr_model():
         p.append_prediction(prediction, test_labels)
     print("Average R^2:" + str(all_r/15.0))
 
-def many_etr_model():
-    """many_etr.csv
-    Leaderboard: ???
-    Personal: ???
-    """
-    print("Processing")
-    p = processing(prediction_fname='many_etr.csv')
-    etr = ensemble.ExtraTreesRegressor(bootstrap=True,
-            oob_score=True, n_jobs=2, n_estimators=10)
-    rtr = ensemble.RandomForestRegressor(bootstrap=True,
-            oob_score=True, n_jobs=2, n_estimators=10)
-    all_r = 0
-    for train_x, train_y, test_x, test_labels in p:
-        print("Fitting model")
-        X_ensemble_of_ensembles = []
-        X_test_ensemble_of_ensemble = []
-        for d in xrange(200):
-            print(d)
-            etr.fit(train_x, train_y)
-            X_ensemble_of_ensembles.append(etr.oob_prediction_)
-            X_test_ensemble_of_ensemble.append(etr.predict(test_x))
-            rtr.fit(train_x, train_y)
-            X_ensemble_of_ensembles.append(rtr.oob_prediction_)
-            X_test_ensemble_of_ensemble.append(rtr.predict(test_x))
-        X_ensemble_of_ensembles = np.array(X_ensemble_of_ensembles)
-        X_test_ensemble_of_ensemble = np.array(X_test_ensemble_of_ensemble)
-        big_etr = ensemble.RandomForestRegressor(bootstrap=True,
-                oob_score=True, n_jobs=1, n_estimators=200)
-        big_etr.fit(X_ensemble_of_ensembles, train_y)
-        running_r = r_squared(big_etr.oob_prediction_, train_y)
-        all_r += running_r
-        print("R^2 is:" + str(running_r))
-        print("Predicting on the test data")
-        prediction = big_etr.predict(test_x)
-        print("Writing out the prediction")
-        p.append_prediction(prediction, test_labels)
-    print("Average R^2:" + str(all_r/15.0))
-
-
 def bootstrapped_fat_ensemble():
     """boot_fat_ensemble.csv
     """
