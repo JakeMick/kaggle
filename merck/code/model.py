@@ -62,7 +62,7 @@ class processing():
     def next(self):
         if self.start > self.stop:
             StopIteration
-        elif self.start >= len(self.training_fnames):
+        elif self.start >= len(self.training_fnames) - 1:
             StopIteration
         else:
             cur = self.start
