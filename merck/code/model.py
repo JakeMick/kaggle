@@ -103,9 +103,9 @@ class processing():
         return test_x, test_labels
 
     def fail_if_pred_fname_exists(self):
-        if path.isfile(self.prediction_fname):
+        if path.isfile(self.out_path):
             raise Exception(
-                "The output filename passed to processing already exists.")
+                    "The output filename passed to processing already exists.")
         else:
             out_handle = open(self.out_path,'w')
             out_handle.write('"MOLECULE","Prediction"\n')
@@ -147,22 +147,37 @@ def etr_model():
 
 def bootstrapped_fat_ensemble():
     """boot_fat_ensemble.csv
+    n_iters=4. 0.44226
     """
-    n_iters = 4
+    n_iters = 1
     split = 0.5
     print("Processing: Boot Fat Ensemble")
-    p = processing(prediction_fname='boot_fat_ensemble.csv')
+    p = processing(prediction_fname='boot_fat_add_more_trees.csv')
     running_r = 0
     for train_x, train_y, test_x, test_labels in p:
         models = [
-            neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
-            linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='elasticnet'),
-            ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=100),
-            ensemble.GradientBoostingRegressor(loss='ls', n_estimators=100),
-            ensemble.GradientBoostingRegressor(loss='huber', n_estimators=100),
-            ensemble.RandomForestRegressor(n_estimators=100, n_jobs=4, bootstrap=True),
-            svm.NuSVR(kernel='rbf'),
-            ]
+                svm.NuSVR(kernel='rbf', nu=.1),
+                svm.NuSVR(kernel='rbf', nu=.9),
+                svm.NuSVR(kernel='poly', nu=.1),
+                svm.NuSVR(kernel='poly', nu=.9),
+                svm.NuSVR(kernel='sigmoid', nu=.1),
+                svm.NuSVR(kernel='sigmoid', nu=.9),
+                neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
+                neighbors.KNeighborsRegressor(n_neighbors=2, weights='uniform', warn_on_equidistant=False),
+                linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='l2'),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=400),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.GradientBoostingRegressor(loss='ls', n_estimators=1000),
+                ensemble.GradientBoostingRegressor(loss='huber', n_estimators=1000),
+                ensemble.RandomForestRegressor(n_estimators=400, n_jobs=4, bootstrap=True),
+                ]
         final_predictions = []
         shuf_split = ShuffleSplit(n=train_x.shape[0],
                 n_iterations=n_iters, test_size=split)
@@ -173,11 +188,9 @@ def bootstrapped_fat_ensemble():
             n_train_y = train_y[tran_n]
             n_test_x = train_x[tes_n]
             n_test_y = train_y[tes_n]
-            model_number = 0
             for m in models:
-                print(model_number)
-                print(str(m))
-                model_number += 1
+                pretty_print = str(m)
+                print(pretty_print.split('(')[0])
                 m.fit(n_train_x, n_train_y)
                 heldout_predictions.append(m.predict(n_test_x))
                 print(str(r_squared(m.predict(n_test_x),n_test_y)))
@@ -186,7 +199,7 @@ def bootstrapped_fat_ensemble():
             test_predictions = np.vstack(test_predictions).T
             print("Master blending")
             etr = ensemble.ExtraTreesRegressor(bootstrap=True,
-                oob_score=True, n_jobs=4, n_estimators=400)
+                    oob_score=True, n_jobs=4, n_estimators=400)
             etr.fit(heldout_predictions, n_test_y)
             final_predictions.append(etr.predict(test_predictions))
             r_val = r_squared(etr.oob_prediction_,n_test_y)
