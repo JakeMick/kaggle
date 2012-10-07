@@ -152,16 +152,19 @@ def bootstrapped_fat_ensemble():
     n_iters = 1
     split = 0.5
     print("Processing: Boot Fat Ensemble")
-    p = processing(prediction_fname='boot_fat_add_more_trees.csv')
+    p = processing(prediction_fname='bootfatter_more_trees.csv')
     running_r = 0
     for train_x, train_y, test_x, test_labels in p:
         models = [
-                svm.NuSVR(kernel='rbf', nu=.1),
-                svm.NuSVR(kernel='rbf', nu=.9),
-                svm.NuSVR(kernel='poly', nu=.1),
-                svm.NuSVR(kernel='poly', nu=.9),
-                svm.NuSVR(kernel='sigmoid', nu=.1),
-                svm.NuSVR(kernel='sigmoid', nu=.9),
+                svm.NuSVR(kernel='rbf', nu=.1, cache_size=2000),
+                svm.NuSVR(kernel='poly', nu=.1, cache_size=2000),
+                svm.NuSVR(kernel='sigmoid', nu=.1, cache_size=2000),
+                svm.NuSVR(kernel='rbf', nu=.5, cache_size=2000),
+                svm.NuSVR(kernel='poly', nu=.5, cache_size=2000),
+                svm.NuSVR(kernel='sigmoid', nu=.5, cache_size=2000),
+                svm.NuSVR(kernel='rbf', nu=.9, cache_size=2000),
+                svm.NuSVR(kernel='poly', nu=.9, cache_size=2000),
+                svm.NuSVR(kernel='sigmoid', nu=.9, cache_size=2000),
                 neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
                 neighbors.KNeighborsRegressor(n_neighbors=2, weights='uniform', warn_on_equidistant=False),
                 linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='l2'),
