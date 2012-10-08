@@ -38,7 +38,7 @@ class processing():
     Example:
         >>> p = processing(prediction_fname='glm.csv')
         >>> for train_x, train_y, test_x, test_labels in p:
-                model.fit(train_x, train_y)
+            model.fit(train_x, train_y)
                 prediction = model.predict(test_x)
                 p.append_prediction(prediction, test_labels)
     """
@@ -62,7 +62,7 @@ class processing():
     def next(self):
         if self.start > self.stop:
             StopIteration
-        elif self.start >= len(self.training_fnames) - 1:
+        elif self.start >= len(self.training_fnames):
             StopIteration
         else:
             cur = self.start
@@ -149,26 +149,26 @@ def bootstrapped_fat_ensemble():
     """boot_fat_ensemble.csv
     n_iters=4. 0.44226
     """
-    n_iters = 1
-    split = 0.5
+    split = 0.8
     print("Processing: Boot Fat Ensemble")
-    p = processing(prediction_fname='bootfatter_more_trees.csv')
+    p = processing(prediction_fname='different_iters_bootfatter_more_trees.csv')
     running_r = 0
+    all_iters = [1,2,3,5,4,1,5,2,3,1,2,2,3,3,3]
+    model_count = 0
     for train_x, train_y, test_x, test_labels in p:
+        n_iters = all_iters[model_count]
+        model_count += 1
         models = [
                 svm.NuSVR(kernel='rbf', nu=.1, cache_size=2000),
                 svm.NuSVR(kernel='poly', nu=.1, cache_size=2000),
-                svm.NuSVR(kernel='sigmoid', nu=.1, cache_size=2000),
                 svm.NuSVR(kernel='rbf', nu=.5, cache_size=2000),
                 svm.NuSVR(kernel='poly', nu=.5, cache_size=2000),
-                svm.NuSVR(kernel='sigmoid', nu=.5, cache_size=2000),
                 svm.NuSVR(kernel='rbf', nu=.9, cache_size=2000),
                 svm.NuSVR(kernel='poly', nu=.9, cache_size=2000),
-                svm.NuSVR(kernel='sigmoid', nu=.9, cache_size=2000),
                 neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
                 neighbors.KNeighborsRegressor(n_neighbors=2, weights='uniform', warn_on_equidistant=False),
                 linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='l2'),
-                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=400),
+                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=1000),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
@@ -178,8 +178,9 @@ def bootstrapped_fat_ensemble():
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.GradientBoostingRegressor(loss='ls', n_estimators=1000),
+                ensemble.GradientBoostingRegressor(loss='lad', n_estimators=1000),
                 ensemble.GradientBoostingRegressor(loss='huber', n_estimators=1000),
-                ensemble.RandomForestRegressor(n_estimators=400, n_jobs=4, bootstrap=True),
+                ensemble.RandomForestRegressor(n_estimators=1000, n_jobs=4, bootstrap=True),
                 ]
         final_predictions = []
         shuf_split = ShuffleSplit(n=train_x.shape[0],
@@ -202,7 +203,7 @@ def bootstrapped_fat_ensemble():
             test_predictions = np.vstack(test_predictions).T
             print("Master blending")
             etr = ensemble.ExtraTreesRegressor(bootstrap=True,
-                    oob_score=True, n_jobs=4, n_estimators=400)
+                    oob_score=True, n_jobs=4, n_estimators=2000)
             etr.fit(heldout_predictions, n_test_y)
             final_predictions.append(etr.predict(test_predictions))
             r_val = r_squared(etr.oob_prediction_,n_test_y)
