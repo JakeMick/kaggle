@@ -145,13 +145,34 @@ def etr_model():
         p.append_prediction(prediction, test_labels)
     print("Average R^2:" + str(all_r/15.0))
 
+def grad_model():
+    """grad.csv
+    """
+    print("Processing")
+    p = processing(prediction_fname='grad.csv')
+    etr = ensemble.GradientBoostingRegressor(loss='lad',
+            subsample=1.0, n_estimators=1000, learn_rate=0.1)
+    all_r = 0
+    for train_x, train_y, test_x, test_labels in p:
+        print("Fitting model")
+        etr.fit(train_x, train_y)
+        running_r = r_squared(etr.oob_prediction_, train_y)
+        all_r += running_r
+        print("R^2 is:" + str(running_r))
+        print("Predicting on the test data")
+        prediction = etr.predict(test_x)
+        print("Writing out the prediction")
+        p.append_prediction(prediction, test_labels)
+    print("Average R^2:" + str(all_r/15.0))
+
+
 def bootstrapped_fat_ensemble():
     """boot_fat_ensemble.csv
     n_iters=4. 0.44226
     """
-    split = 0.8
+    split = 0.4
     print("Processing: Boot Fat Ensemble")
-    p = processing(prediction_fname='different_iters_bootfatter_more_trees.csv')
+    p = processing(prediction_fname='different_iters_bootfatter_more_trees_less_models.csv')
     running_r = 0
     all_iters = [1,2,3,5,4,1,5,2,3,1,2,2,3,3,3]
     model_count = 0
@@ -159,20 +180,14 @@ def bootstrapped_fat_ensemble():
         n_iters = all_iters[model_count]
         model_count += 1
         models = [
-                svm.NuSVR(kernel='rbf', nu=.1, cache_size=2000),
-                svm.NuSVR(kernel='poly', nu=.1, cache_size=2000),
                 svm.NuSVR(kernel='rbf', nu=.5, cache_size=2000),
-                svm.NuSVR(kernel='poly', nu=.5, cache_size=2000),
                 svm.NuSVR(kernel='rbf', nu=.9, cache_size=2000),
-                svm.NuSVR(kernel='poly', nu=.9, cache_size=2000),
-                neighbors.KNeighborsRegressor(n_neighbors=6, weights='uniform', warn_on_equidistant=False),
-                neighbors.KNeighborsRegressor(n_neighbors=2, weights='uniform', warn_on_equidistant=False),
                 linear_model.SGDRegressor(loss='huber', n_iter=1000, shuffle=True, penalty='l2'),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=1000),
-                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
-                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
-                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
-                ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=False, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=False, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=False, n_jobs=4, n_estimators=10),
+                ensemble.ExtraTreesRegressor(bootstrap=False, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
                 ensemble.ExtraTreesRegressor(bootstrap=True, n_jobs=4, n_estimators=10),
@@ -214,4 +229,4 @@ def bootstrapped_fat_ensemble():
     print("Average R^2 is: " + str(running_r/(15.0*n_iters)))
 
 if __name__ == "__main__":
-    bootstrapped_fat_ensemble()
+    grad_model()

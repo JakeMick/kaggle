@@ -1,0 +1,3 @@
+compData.db goes here
+mkdir models
+mkdir models/feature_selection/
