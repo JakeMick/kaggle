@@ -3,32 +3,25 @@ import pandas
 from ml_metrics import rmse
 from sklearn.base import BaseEstimator, RegressorMixin, MetaEstimatorMixin, clone
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.grid_search import RandomizedSearchCV
 from sklearn.cross_validation import Bootstrap
-from sklearn.linear_model import PassiveAggressiveRegressor
+from sklearn.linear_model import PassiveAggressiveRegressor, Ridge
 from sklearn.svm import NuSVR
-
-
-def min_map(l_lats, l_longs, r_lats, r_longs):
-    l_elems = l_lats.shape[0]
-    out = np.zeros(l_elems, dtype='int')
-    for i in xrange(l_elems):
-        d = np.argmin((l_lats[i] - r_lats) ** 2 + (l_longs[i] - r_longs) ** 2)
-        out[i] = d
-    return out
+from sklearn.neighbors import KNeighborsRegressor
 
 
 class loader:
-    def __init__(self):
+    def __init__(self, n_text=100):
         self.inputs = ['latitude', 'longitude', 'summary', 'description',
                        'source', 'created_time', 'tag_type']
         self.text = ['summary']
         self.targets = ['num_votes', 'num_comments', 'num_views']
         self.read()
         self.add_dates()
-        self.add_texts()
+        self.add_geo()
+        self.add_texts(n_text)
         self.format()
 
     def format(self):
@@ -56,6 +49,19 @@ class loader:
         self.zip['DependencyRatio'] = self.zip.TaxReturnsFiled / self.zip.EstimatedPopulation
         self.zip = self.zip.dropna()
 
+    def add_geo(self):
+        model = KNeighborsRegressor(n_neighbors=1)
+        x = self.zip[['Lat', 'Long']].values
+        derived = ['TaxReturnsFiled', 'EstimatedPopulation', 'EstWages', 'DependencyRatio']
+        y = self.zip[derived].values
+        model.fit(x, y)
+        train_feats = model.predict(self.train[['latitude', 'longitude']].values)
+        test_feats = model.predict(self.test[['latitude', 'longitude']].values)
+        tr = pandas.DataFrame(train_feats, columns=derived)
+        te = pandas.DataFrame(test_feats, columns=derived)
+        self.merge(tr, self.train)
+        self.merge(te, self.test)
+
     def add_dates(self):
         train_dates = self.date_trick(self.train.created_time)
         test_dates = self.date_trick(self.test.created_time)
@@ -67,9 +73,9 @@ class loader:
         for i in left.columns:
             right[i] = left[i]
 
-    def add_texts(self):
+    def add_texts(self, n_text):
         for i in self.text:
-            count = CountVectorizer(max_features=100)
+            count = CountVectorizer(max_features=n_text)
             count.fit(self.train[i])
             train_feats = count.transform(self.train[i]).toarray()
             test_feats = count.transform(self.test[i]).toarray()
@@ -103,9 +109,9 @@ def rmse_est(estimator, x, y):
 
 
 class process:
-    def __init__(self, fname, n=150000):
+    def __init__(self, fname, n=150000, n_text=100):
         self.fname = fname
-        data = loader()
+        data = loader(n_text=n_text)
         self.test_ind = data.test_ind
         self.X_tr = data.X_train[-n:]
         self.X_te = data.X_test
@@ -113,10 +119,11 @@ class process:
         sc = StandardScaler()
         self.X_tr = sc.fit_transform(self.X_tr)
         self.X_te = sc.transform(self.X_te)
+        self.is_classification = False
 
     def write_res(self, pred):
         out = np.exp(pred) - 1
-        out[out < 0] = 0
+        out[out < 0] = 0.0
         h = open(self.fname, 'w')
         h.write("id,num_votes,num_comments,num_views\n")
         for row in xrange(out.shape[0]):
@@ -129,10 +136,12 @@ class process:
     def search_params(self, estimator, param_dict, n_iter=50, train_size=30000):
         self.pdict = param_dict
         self.est = estimator
-        self.sampler = Bootstrap(self.X_tr.shape[0], n_iter=5, train_size=train_size)
+        self.sampler = Bootstrap(self.X_tr.shape[0], n_iter=4, train_size=train_size)
+        self.sampler.is_classification = False
         self.cv = RandomizedSearchCV(self.est, self.pdict, scoring=rmse_est,
-                                     n_jobs=8, cv=self.sampler, refit=False, verbose=9,
+                                     n_jobs=4, cv=self.sampler, refit=False, verbose=9,
                                      n_iter=n_iter)
+        self.cv.is_classification = False
         self.cv.fit(self.X_tr, self.y_tr)
         print("____Best Score____")
         print(-self.cv.best_score_)
@@ -213,23 +222,24 @@ class RFmodel:
 
         """
         np.random.seed(123)
-        self.love = process("pred_rf_round4.csv", n=100000)
+        self.love = process("pred_rf_round5.csv", n=100000, n_text=1000)
         self.make_model()
 
     def make_model(self):
         model = RandomForestRegressor(max_features='auto',
                                       min_samples_split=27,
-                                      n_estimators=1950,
+                                      n_estimators=3000,
                                       max_depth=None,
                                       min_samples_leaf=3,
-                                      n_jobs=8)
+                                      n_jobs=8,
+                                      verbose=9)
         model.fit(self.love.X_tr, self.love.y_tr)
         pred = model.predict(self.love.X_te)
         self.love.write_res(pred)
 
     def find_model(self):
         np.random.seed(123)
-        model = RandomForestRegressor(max_depth=None)
+        model = RandomForestRegressor(max_depth=None, verbose=9, n_jobs=4)
         params = {'n_estimators': np.arange(1000, 2000, 50),
                   'max_features': [.9, .95, 'auto', 'sqrt', 'log2'],
                   'min_samples_split': np.arange(10, 100),
@@ -241,7 +251,7 @@ class RFmodel:
 class PAmodel:
     def __init__(self):
         np.random.seed(123)
-        self.love = process("pred_pa_round1.csv", n=100000)
+        self.love = process("pred_pa_round2.csv", n=100000, n_text=1000)
         self.find_model()
 
     def make_model(self):
@@ -286,3 +296,70 @@ class SVMmodel:
             'shrinking': [False, True],
         }
         self.love.search_params(model, params, n_iter=10, train_size=30000)
+
+
+class RidgeModel:
+    def __init__(self):
+        np.random.seed(123)
+        self.love = process("pred_ridge_round4.csv", n=70000, n_text=1000)
+        self.make_model()
+
+    def make_model(self):
+        model = SuperRegressor(Ridge(solver='lsqr', alpha=3.88))
+        model.fit(self.love.X_tr, self.love.y_tr)
+        pred = model.predict(self.love.X_te)
+        pred[pred < 0.0] = 0.0
+        self.love.write_res(pred)
+
+    def find_model(self):
+        np.random.seed(123)
+        model = SuperRegressor(Ridge(solver='lsqr'))
+        params = {
+            'alpha': np.arange(.01, 5.1, .01),
+        }
+        self.love.search_params(model, params, n_iter=100, train_size=30000)
+
+
+class GBMModel:
+    def __init__(self):
+        np.random.seed(123)
+        self.love = process("pred_gbm_round1.csv", n=27000, n_text=1000)
+        self.make_model()
+
+    def make_model(self):
+        model = SuperRegressor(GradientBoostingRegressor())
+        model.fit(self.love.X_tr, self.love.y_tr)
+        pred = model.predict(self.love.X_te)
+        pred[pred < 0.0] = 0.0
+        self.love.write_res(pred)
+
+    def find_model(self):
+        np.random.seed(123)
+        model = SuperRegressor(GradientBoostingRegressor(loss='ls'))
+        params = {
+                  'n_estimators': np.arange(1000, 4000, 50),
+                  'learning_rate': np.arange(0.001, .3, .001),
+                  'max_features': ['auto', 'sqrt', 'log2'],
+                  'min_samples_split': np.arange(10, 100),
+                  'subsample': np.arange(0.01, 1.01, .01),
+                  }
+        self.love.search_params(model, params, n_iter=200, train_size=10000)
+
+
+def blender():
+    files = ["pred_rf_round5.csv","pred_ridge_round4.csv"]
+    n = float(len(files))
+    new = pandas.read_csv(files[0])
+    new.index = new.id
+    del new['id']
+    data = []
+    for i in files:
+        frame = pandas.read_csv(i)
+        frame.index = frame.id
+        assert(np.all(new.index == frame.index))
+        data.append(frame)
+    new.num_votes = sum([i.num_votes for i in data]) / n
+    new.num_views = sum([i.num_views for i in data]) / n
+    new.num_comments = sum([i.num_comments for i in data]) / n
+    new[new < 0.001] = 0.0
+    new.to_csv("pred_blended.csv")
